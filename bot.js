@@ -207,14 +207,62 @@ bot.action(/ch_(.+)_(.+)/, async (ctx) => {
     const courierId = ctx.match[2];
     const order = orders[orderId];
     const courier = COURIERS.find(c => c.id == courierId);
-    if (!order) return;
 
-    order.courierSent = true;
-    await ctx.telegram.sendMessage(courierId, `📦 BUYURTMA #${orderId}\n📞 +${order.phone}\n💰: ${order.total.toLocaleString()} so'm`);
+    if (!order) return ctx.answerCbQuery("Buyurtma topilmadi!");
+
+    const itemsText = order.items.map(i => `- ${i.name}`).join('\n');
+
+    // Kuryerga tugmalar bilan yuborish
+    await ctx.telegram.sendMessage(courierId, 
+        `📦 *YANGI BUYURTMA #${orderId}*\n\n` +
+        `📞 +${order.phone}\n` +
+        `${itemsText}\n` +
+        `💰 Jami: ${order.total.toLocaleString()} so'm`, 
+        { 
+            parse_mode: 'Markdown',
+            ...Markup.inlineKeyboard([
+                [Markup.button.callback("✅ Qabul qildim", `c_take_${orderId}`)],
+                [Markup.button.callback("🏁 Topshirdim", `c_done_${orderId}`)]
+            ])
+        }
+    );
     await ctx.telegram.sendLocation(courierId, order.latitude, order.longitude);
-    await ctx.telegram.sendMessage(order.userId, `🚀 Buyurtmangiz yo'lga chiqdi. Kuryer: ${courier.name}`);
-    ctx.editMessageText(`✅ Buyurtma #${orderId} kuryerga berildi.`);
+    ctx.editMessageText(`✅ Buyurtma #${orderId} kuryer ${courier.name}ga yuborildi.`);
 });
+// Kuryer "Qabul qildim" desa
+bot.action(/c_take_(.+)/, async (ctx) => {
+    const orderId = ctx.match[1];
+    const order = orders[orderId];
+    if (!order) return ctx.answerCbQuery("Xato!");
+
+    await ctx.telegram.sendMessage(order.userId, `🚀 Kuryer buyurtmangizni qabul qildi va yo'lga chiqdi!`);
+    await ctx.telegram.sendMessage(ADMIN_ID, `🚗 #${orderId} buyurtma kuryer tomonidan qabul qilindi.`);
+    await ctx.answerCbQuery("Mijozga xabar yuborildi! ✅");
+});
+
+// Kuryer "Topshirdim" desa
+bot.action(/c_done_(.+)/, async (ctx) => {
+    const orderId = ctx.match[1];
+    const order = orders[orderId];
+    if (!order) return ctx.answerCbQuery("Xato!");
+
+    // Statistikaga qo'shish
+    if (!order.addedToStats) {
+        order.items.forEach(i => {
+            stats.items[i.name] = (stats.items[i.name] || 0) + 1;
+            stats.totalSum += i.price;
+        });
+        order.addedToStats = true;
+    }
+
+    await ctx.telegram.sendMessage(order.userId, `🏁 Buyurtmangiz yetkazildi. Yoqimli ishtaha! 👋`);
+    await ctx.telegram.sendMessage(ADMIN_ID, `✅ Buyurtma #${orderId} topshirildi va statistikaga qo'shildi.`);
+    
+    ctx.editMessageText(`🏁 Buyurtma #${orderId} yakunlandi.`);
+    delete orders[orderId]; // Xotirani tozalash
+    await ctx.answerCbQuery("Buyurtma yopildi! 🏁");
+});
+
 
 bot.action(/cn_(.+)/, (ctx) => {
     const orderId = ctx.match[1];
