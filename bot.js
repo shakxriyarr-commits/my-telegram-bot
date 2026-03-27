@@ -4,7 +4,7 @@ const { Telegraf, Markup } = require('telegraf');
 const token = process.env.BOT_TOKEN;
 const ADMIN_ID = '7312694067'; // O'zingizning ID raqamingizni yozing
 
-const bot = new Telegraf(BOT_TOKEN);
+const bot = new Telegraf(token);
 
 // Ma'lumotlarni saqlash (Vaqtinchalik)
 const activeOrders = {};   // Jarayondagi (telefon/manzil kutilayotgan) buyurtmalar
