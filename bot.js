@@ -156,11 +156,25 @@ bot.on('location', async (ctx) => {
 
 // ❌ BEKOR
 bot.action(/cn_(.+)/, async (ctx) => {
-    const order = orders[ctx.match[1]];
+    const orderId = ctx.match[1];
+    const order = orders[orderId];
+
     if (!order) return;
 
-    await ctx.telegram.sendMessage(order.userId, "❌ Bekor qilindi", mainKeyboard);
-    ctx.editMessageText("🚫 Bekor qilindi");
+    // MIJOZGA
+    await ctx.telegram.sendMessage(
+        order.userId,
+        "❌ Buyurtmangiz bekor qilindi.",
+        mainKeyboard
+    );
+
+    // 🔥 ADMINGA HAM XABAR
+    await ctx.telegram.sendMessage(
+        ADMIN_ID,
+        `🚫 Mijoz buyurtmani bekor qildi (#${orderId})`
+    );
+
+    ctx.editMessageText(`🚫 Buyurtma #${orderId} bekor qilindi.`);
 });
 
 // ⚠️ TUGAGAN
