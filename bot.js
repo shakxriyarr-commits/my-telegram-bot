@@ -21,7 +21,7 @@ const menu = [
 ];
 
 let carts = {};
-let orders = {};
+let orderCounter = 1; // Buyurtma sanog'ini 1 dan boshlaymiz
 let users = {};
 
 // 3. KLAVIATURA
@@ -91,6 +91,14 @@ bot.on('location', async (ctx) => {
     const userId = ctx.from.id;
     const cart = carts[userId] || [];
     if (!cart.length) return ctx.reply("Savatcha bo'sh");
+        const { latitude, longitude } = ctx.message.location;
+    
+    // YANGI TARTIBLI RAQAMLASH:
+    const orderId = orderCounter.toString(); // Hozirgi raqamni (1, 2, 3...) oladi
+    orderCounter++; // Keyingi buyurtma uchun raqamni bittaga oshiradi
+
+    // ... qolgan buyurtma saqlash kodi (orders[orderId] = ...)
+
 
     const { latitude, longitude } = ctx.message.location;
     const orderId = Date.now().toString().slice(-6);
