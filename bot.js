@@ -9,7 +9,7 @@ const MY_RENDER_URL = "https://coffee-food-bot.onrender.com";
 
 // 2. MA'LUMOTLAR
 const COURIERS = [
-    { id: 111111111, name: "Ali" },
+    { id: 6382827314, name: "Shahriyor" },
     { id: 222222222, name: "Vali" }
 ];
 
