@@ -123,10 +123,18 @@ bot.on('location', async (ctx) => {
 
 // --- ADMIN VA KURYER ACTIONLARI ---
 
-bot.action(/sd_(.+)/, (ctx) => {
+bot.action(/ed_(.+)/, async (ctx) => {
     const orderId = ctx.match[1];
-    const buttons = COURIERS.map(c => [Markup.button.callback(c.name, `ch_${orderId}_${c.id}`)]);
-    ctx.editMessageText("🚗 Kuryer tanlang:", Markup.inlineKeyboard(buttons));
+    const order = orders[orderId];
+    if (!order) return;
+
+    // Tugma matnini qisqartiramiz (faqat X va mahsulot nomi)
+    const buttons = order.items.map(i => [
+        Markup.button.callback(`❌ ${i.name}`, `rm_${orderId}_${i.uid}`)
+    ]);
+
+    await ctx.answerCbQuery();
+    ctx.editMessageText("Qaysi mahsulot yo‘q? (Tugmasini bosing):", Markup.inlineKeyboard(buttons));
 });
 
 bot.action(/ch_(.+)_(.+)/, async (ctx) => {
