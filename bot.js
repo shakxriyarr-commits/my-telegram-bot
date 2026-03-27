@@ -2,12 +2,12 @@ const { Telegraf, Markup } = require('telegraf');
 const express = require('express');
 const axios = require('axios');
 
-// 1. TOKEN VA SERVER SOZLAMALARI
+// 1. ASOSIY SOZLAMALAR (Tokenni Render'da BOT_TOKEN deb yozing)
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const ADMIN_ID = 7312694067; 
-const MY_RENDER_URL = "https://coffee-food-bot.onrender.com"; // O'zingizning Render havolangiz
+const MY_RENDER_URL = "https://coffee-food-bot.onrender.com"; 
 
-// 2. MA'LUMOTLAR
+// 2. MA'LUMOTLAR OMBORI
 const COURIERS = [
     { id: 111111111, name: "Ali" },
     { id: 222222222, name: "Vali" }
@@ -30,9 +30,11 @@ const mainKeyboard = Markup.keyboard([
     ['📞 Aloqa']
 ]).resize();
 
-// --- BOT LOGIKASI (START, MENU, ADD) ---
+// --- MIJOZ QISMI ---
 
-bot.start(ctx => ctx.reply("Xush kelibsiz 👋 Coffee Food & Çukur Burger botiga!", mainKeyboard));
+bot.start(ctx => {
+    ctx.reply("Xush kelibsiz Coffee Food botiga! 👋", mainKeyboard);
+});
 
 bot.hears('🍴 Menyu', (ctx) => {
     const buttons = menu.map(i => [
@@ -42,7 +44,8 @@ bot.hears('🍴 Menyu', (ctx) => {
 });
 
 bot.action(/add_(.+)/, async (ctx) => {
-    const item = menu.find(i => i.id === ctx.match[1]);
+    const itemId = ctx.match[1];
+    const item = menu.find(i => i.id === itemId);
     const userId = ctx.from.id;
     if (!carts[userId]) carts[userId] = [];
     carts[userId].push({ ...item, uid: Date.now() + Math.random() });
@@ -82,7 +85,7 @@ bot.on('contact', (ctx) => {
     ctx.reply("📍 Lokatsiyangizni yuboring:", Markup.keyboard([[Markup.button.locationRequest("📍 Lokatsiyani yuborish")]]).resize().oneTime());
 });
 
-// --- BUYURTMA YUBORISH (ADMIN'GA) ---
+// --- BUYURTMA ADMINGA BORISHI ---
 
 bot.on('location', async (ctx) => {
     const userId = ctx.from.id;
@@ -104,7 +107,7 @@ bot.on('location', async (ctx) => {
 
     await ctx.telegram.sendMessage(
         ADMIN_ID,
-        `🔔 BUYURTMA #${orderId}\n\n📞 +${users[userId].phone}\n\n${itemsText}\n💰 Jami: ${total} so'm\n📍 Xarita: ${mapLink}`,
+        `🔔 YANGI BUYURTMA #${orderId}\n\n📞 +${users[userId].phone}\n\n${itemsText}\n💰 Jami: ${total} so'm\n📍 Xarita: ${mapLink}`,
         Markup.inlineKeyboard([
             [Markup.button.callback("🚗 Kuryerga berish", `sd_${orderId}`)],
             [Markup.button.callback("⚠️ Mahsulot tugagan", `ed_${orderId}`)],
@@ -117,7 +120,7 @@ bot.on('location', async (ctx) => {
     ctx.reply("✅ Buyurtmangiz yuborildi, admin tasdiqlashini kuting.", mainKeyboard);
 });
 
-// --- ADMIN ACTIONLARI (TUGMALAR ISHLASHI UCHUN) ---
+// --- ADMIN ACTIONLARI ---
 
 bot.action(/sd_(.+)/, (ctx) => {
     const orderId = ctx.match[1];
@@ -129,12 +132,12 @@ bot.action(/ch_(.+)_(.+)/, async (ctx) => {
     const orderId = ctx.match[1];
     const courierId = Number(ctx.match[2]);
     const order = orders[orderId];
-    if (!order) return ctx.answerCbQuery("Buyurtma topilmadi");
+    if (!order) return ctx.answerCbQuery("Xato!");
 
     let text = "";
     order.items.forEach(i => text += `- ${i.name}\n`);
 
-    await ctx.telegram.sendMessage(courierId, `🚚 BUYURTMA #${orderId}\n📞 +${order.phone}\n${text}\n💰 ${order.total} so'm`);
+    await ctx.telegram.sendMessage(courierId, `🚚 BUYURTMA #${orderId}\n📞 +${order.phone}\n${text}\n💰 Jami: ${order.total} so'm`);
     await ctx.telegram.sendLocation(courierId, order.latitude, order.longitude);
     await ctx.telegram.sendMessage(order.userId, "🚀 Kuryer yo‘lda!", mainKeyboard);
     ctx.editMessageText("✅ Kuryerga yuborildi");
@@ -151,8 +154,8 @@ bot.action(/ed_(.+)/, async (ctx) => {
     const orderId = ctx.match[1];
     const order = orders[orderId];
     if (!order) return;
-    const buttons = order.items.map(i => [Markup.button.callback(`❌ ${i.name}`, `rm_${orderId}_${i.uid}`)]);
-    ctx.editMessageText("Qaysi mahsulot tugagan?", Markup.inlineKeyboard(buttons));
+    const buttons = order.items.map(i => [Markup.button.callback(`❌ ${i.name} tugagan`, `rm_${orderId}_${i.uid}`)]);
+    ctx.editMessageText("Qaysi mahsulot yo'q?", Markup.inlineKeyboard(buttons));
 });
 
 bot.action(/rm_(.+)_(.+)/, async (ctx) => {
@@ -173,23 +176,43 @@ bot.action(/rm_(.+)_(.+)/, async (ctx) => {
     ctx.editMessageText("Mijozga so'rov yuborildi");
 });
 
+// --- MIJOZ "HA" DEGANDA SMS ADMINGA BORISHI ---
 bot.action(/ok_(.+)/, async (ctx) => {
     const orderId = ctx.match[1];
     const order = orders[orderId];
-    ctx.editMessageText("✅ Mijoz rozi bo'ldi. Kuryerga bering.");
-    const buttons = COURIERS.map(c => [Markup.button.callback(c.name, `ch_${orderId}_${c.id}`)]);
-    ctx.reply(`✅ Mijoz rozi (#${orderId}). Kuryer tanlang:`, Markup.inlineKeyboard(buttons));
+    if (!order) return ctx.answerCbQuery("Buyurtma topilmadi");
+
+    // 1. Mijozning ekranida xabarni o'zgartiramiz
+    await ctx.editMessageText("✅ Rahmat! Buyurtmangiz qayta ishlanmoqda.");
+    await ctx.answerCbQuery("Tasdiqlandi ✅");
+
+    // 2. ADMINGA xabar yuboramiz (Mijozga emas!)
+    let itemsText = "";
+    order.items.forEach(i => itemsText += `- ${i.name}\n`);
+    const mapLink = `https://maps.google.com{order.latitude},${order.longitude}`;
+
+    await ctx.telegram.sendMessage(
+        ADMIN_ID,
+        `✅ MIJOZ ROZI (#${orderId})\n\n📞 +${order.phone}\n\n${itemsText}\n💰 Jami: ${order.total} so'm\n📍 Xarita: ${mapLink}`,
+        Markup.inlineKeyboard([
+            [Markup.button.callback("🚗 Kuryerga berish", `sd_${orderId}`)],
+            [Markup.button.callback("🚫 Bekor qilish", `cn_${orderId}`)]
+        ])
+    );
+    
+    // Adminga lokatsiyani qayta yuboramiz
+    await ctx.telegram.sendLocation(ADMIN_ID, order.latitude, order.longitude);
 });
 
-bot.hears('📞 Aloqa', (ctx) => ctx.reply(`🍔 Çukur burger\nFast food\n\n📞 +998 99 450 67 67\n⏰ 10:00 - 00:00`));
+bot.hears('📞 Aloqa', (ctx) => ctx.reply(`🍔 Coffee Food\n\n📞 +998 95 440 64 44\n⏰ 10:00 - 00:00`));
 
 // --- SERVER VA SELF-PING ---
 const app = express();
-app.get('/', (req, res) => res.send("Bot 24/7 ishlamoqda..."));
+app.get('/', (req, res) => res.send("Bot Online 🚀"));
 app.listen(process.env.PORT || 3000, '0.0.0.0');
 
 setInterval(() => {
-    axios.get(MY_RENDER_URL).then(() => console.log("Ping ✅")).catch(e => console.log("Error ❌"));
+    axios.get(MY_RENDER_URL).then(() => console.log("Uyg'oq ✅")).catch(e => console.log("Xato ❌"));
 }, 14 * 60 * 1000);
 
-bot.launch().then(() => console.log("Bot ishga tushdi 🚀"));
+bot.launch().then(() => console.log("Bot Render'da muvaffaqiyatli yoqildi!"));
