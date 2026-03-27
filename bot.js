@@ -155,9 +155,30 @@ bot.action(/ch_(.+)_(.+)/, async (ctx) => {
 bot.action(/cn_(.+)/, async (ctx) => {
     const orderId = ctx.match[1];
     const order = orders[orderId];
-    if (order) await ctx.telegram.sendMessage(order.userId, "❌ Uzr, buyurtmangiz bekor qilindi.", mainKeyboard);
-    ctx.editMessageText("🚫 Buyurtma bekor qilindi");
+
+    // 1. Soat belgisini yo'qotish uchun darhol javob beramiz
+    await ctx.answerCbQuery().catch(() => {});
+
+    if (order) {
+        try {
+            // 2. MIJOZGA xabar yuboramiz
+            await ctx.telegram.sendMessage(
+                order.userId, 
+                "❌ Uzr, buyurtmangiz bekor qilindi.", 
+                mainKeyboard
+            );
+            // 3. ADMINGA (sizga) xabar beramiz
+            await ctx.editMessageText(`🚫 Buyurtma #${orderId} bekor qilindi.`);
+        } catch (err) {
+            // Agar mijoz botni bloklagan bo'lsa xato chiqmasligi uchun
+            await ctx.editMessageText("🚫 Bekor qilindi (lekin mijozga xabar bormadi).");
+        }
+    } else {
+        // Agar ma'lumot serverdan o'chib ketgan bo'lsa
+        await ctx.editMessageText("⚠️ Xato: Buyurtma topilmadi.");
+    }
 });
+
 
 bot.action(/ed_(.+)/, async (ctx) => {
     const orderId = ctx.match[1];
