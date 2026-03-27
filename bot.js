@@ -1,7 +1,7 @@
 const { Telegraf, Markup } = require('telegraf');
 
 // 1. Bot sozlamalari
-const BOT_TOKEN = '8617054453:AAFzm-oMuROoZtKDUutDLJAMYMc0sb0hGg4'; 
+const token = process.env.BOT_TOKEN;
 const ADMIN_ID = '7312694067'; // O'zingizning ID raqamingizni yozing
 
 const bot = new Telegraf(BOT_TOKEN);
