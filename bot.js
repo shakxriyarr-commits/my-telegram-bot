@@ -1,145 +1,238 @@
 const { Telegraf, Markup } = require('telegraf');
+const express = require('express');
 
-// 1. Bot sozlamalari
-const token = process.env.BOT_TOKEN;
-const ADMIN_ID = '7312694067'; // O'zingizning ID raqamingizni yozing
+const bot = new Telegraf(process.env.BOT_TOKEN);
 
-const bot = new Telegraf(token);
+// ADMIN
+const ADMIN_ID = 7312694067;
 
-// Ma'lumotlarni saqlash (Vaqtinchalik)
-const activeOrders = {};   // Jarayondagi (telefon/manzil kutilayotgan) buyurtmalar
-const finishedOrders = {}; // Yakunlangan (adminga ketgan) buyurtmalar
+// KURYERLAR
+const COURIERS = [
+    { id: 111111111, name: "Ali" },
+    { id: 222222222, name: "Vali" },
+    { id: 333333333, name: "Sardor" },
+    { id: 444444444, name: "Jasur" },
+    { id: 555555555, name: "Bekzod" }
+];
 
-// 2. Asosiy menyu
-const mainKeyboard = Markup.keyboard([
-    ['🍔 Burger - 30,000', ' 🍔 Burger dvaynoy - 35,000'],
-    ['🍔 Burger troynoy - 40,000', '🌯lavash - 32,000'],
-    ['📋 Buyurtmalarim', '📞 Bizning raqam']
-]).resize();
+// MENU
+const menu = [
+    { id: 'b1', name: '🍔 Burger', price: 30000 },
+    { id: 'b2', name: '🍔 Burger dvaynoy', price: 35000 },
+    { id: 'b3', name: '🍔 Burger troynoy', price: 40000 },
+    { id: 'l1', name: '🌯 Lavash', price: 32000 }
+];
 
-// START komandasi
+// DATA
+let carts = {};
+let orders = {};
+let users = {};
+
+// START
 bot.start((ctx) => {
-    ctx.reply('Xush kelibsiz! Taom tanlang yoki buyurtmalaringizni boshqaring:', mainKeyboard);
+    ctx.reply("Xush kelibsiz 👋", Markup.keyboard([
+        ['🍴 Menyu', '🛒 Savatcha'],
+        ['📞 Aloqa']
+    ]).resize());
 });
 
-// 3. Matnli xabarlarni qayta ishlash
-bot.on('text', async (ctx) => {
-    const msg = ctx.message.text;
+// ALOQA
+bot.hears('📞 Aloqa', (ctx) => {
+    ctx.reply("📞 +998994506767");
+});
+
+// MENU
+bot.hears('🍴 Menyu', (ctx) => {
+    const buttons = menu.map(i => [
+        Markup.button.callback(`${i.name} - ${i.price}`, `add_${i.id}`)
+    ]);
+    ctx.reply("Tanlang:", Markup.inlineKeyboard(buttons));
+});
+
+// ADD TO CART
+bot.action(/add_(.+)/, (ctx) => {
+    const item = menu.find(i => i.id === ctx.match[1]);
     const userId = ctx.from.id;
 
-    // Taom tanlanganda
-    if (msg.includes('Burger') || msg.includes('Lavash')) {
-        activeOrders[userId] = { food: msg, step: 'get_phone' };
-        return ctx.reply(`✅ ${msg} tanlandi.\nTelefon raqamingizni pastdagi tugma orqali yuboring:`, 
-            Markup.keyboard([[Markup.button.contactRequest('📱 Raqamni yuborish')]]).resize().oneTime()
-        );
-    }
+    if (!carts[userId]) carts[userId] = [];
+    carts[userId].push(item);
 
-    // Buyurtmalarim bo'limi
-    if (msg === '📋 Buyurtmalarim') {
-        const order = finishedOrders[userId];
-        if (!order) {
-            return ctx.reply("Sizda hozircha faol buyurtma yo'q.");
-        }
-        return ctx.reply(
-            `Sizning oxirgi buyurtmangiz:\n\n📦 Taom: ${order.food}\n📞 Tel: ${order.phone}\n\nBuyurtmani bekor qilmoqchimisiz?`,
-            Markup.inlineKeyboard([
-                [Markup.button.callback('❌ Bekor qilish', 'cancel_order')]
-            ])
-        );
-    }
-
-    if (msg === '📞 Bizning raqam') {
-        return ctx.reply('☎️ Bizning raqamimiz: +998-99-450-67-67');
-    }
+    ctx.answerCbQuery("Qo‘shildi ✅");
 });
 
-// 4. Kontakt (Telefon) qabul qilish
+// CART
+bot.hears('🛒 Savatcha', (ctx) => {
+    const cart = carts[ctx.from.id] || [];
+    if (!cart.length) return ctx.reply("Bo‘sh 🛒");
+
+    let text = "";
+    let total = 0;
+
+    cart.forEach((i, idx) => {
+        text += `${idx + 1}. ${i.name} - ${i.price}\n`;
+        total += i.price;
+    });
+
+    text += `\n💰 ${total}`;
+
+    ctx.reply(text, Markup.inlineKeyboard([
+        [Markup.button.callback("✅ Buyurtma", "order")],
+        [Markup.button.callback("🗑 Tozalash", "clear")]
+    ]));
+});
+
+// CLEAR
+bot.action('clear', (ctx) => {
+    carts[ctx.from.id] = [];
+    ctx.reply("Tozalandi 🗑");
+});
+
+// ORDER
+bot.action('order', (ctx) => {
+    ctx.reply("📱 Raqam yubor:", Markup.keyboard([
+        [Markup.button.contactRequest("📞 Raqam")]
+    ]).resize().oneTime());
+});
+
+// PHONE
 bot.on('contact', (ctx) => {
-    const userId = ctx.from.id;
-    if (activeOrders[userId] && activeOrders[userId].step === 'get_phone') {
-        activeOrders[userId].phone = ctx.message.contact.phone_number;
-        activeOrders[userId].step = 'get_location';
+    users[ctx.from.id] = {
+        phone: ctx.message.contact.phone_number
+    };
 
-        return ctx.reply('Rahmat! Endi yetkazib berish manzilini (lokatsiya) yuboring:', 
-            Markup.keyboard([[Markup.button.locationRequest('📍 Manzilni yuborish')]]).resize().oneTime()
-        );
-    }
+    ctx.reply("📍 Lokatsiya yubor:", Markup.keyboard([
+        [Markup.button.locationRequest("📍 Lokatsiya")]
+    ]).resize().oneTime());
 });
 
-// 5. Lokatsiya qabul qilish va Adminga jo'natish
+// LOCATION
 bot.on('location', async (ctx) => {
     const userId = ctx.from.id;
-    const loc = ctx.message.location;
+    const cart = carts[userId] || [];
+    const phone = users[userId]?.phone;
 
-    if (activeOrders[userId] && activeOrders[userId].step === 'get_location') {
-        const orderData = activeOrders[userId];
-        
-        // Google Maps havolasi (To'g'ri formatda)
-        const mapLink = `https://www.google.com{loc.latitude},${loc.longitude}`;
+    if (!phone || !cart.length) return ctx.reply("❗ Xatolik");
 
-        // Buyurtmani yakunlanganlarga qo'shish
-        finishedOrders[userId] = { 
-            food: orderData.food, 
-            phone: orderData.phone,
-            lat: loc.latitude,
-            lon: loc.longitude 
-        };
+    const { latitude, longitude } = ctx.message.location;
+    const map = `https://maps.google.com/?q=${latitude},${longitude}`;
 
-        const report = `🔔 <b>YANGI BUYURTMA!</b>\n\n` +
-                       `📦 <b>Taom:</b> ${orderData.food}\n` +
-                       `👤 <b>Mijoz:</b> ${ctx.from.first_name}\n` +
-                       `📞 <b>Telefon:</b> +${orderData.phone}\n` +
-                       `📍 <a href="${mapLink}">Xaritada ko'rish</a>`;
+    const orderId = Date.now();
 
-        try {
-            // Adminga xabar va lokatsiya yuborish
-            await bot.telegram.sendMessage(ADMIN_ID, report, { parse_mode: 'HTML' });
-            await bot.telegram.sendLocation(ADMIN_ID, loc.latitude, loc.longitude);
+    let items = "";
+    let total = 0;
 
-            await ctx.reply('✅ Rahmat! Buyurtmangiz qabul qilindi. Tez orada bog\'lanamiz.', mainKeyboard);
-            delete activeOrders[userId]; // Vaqtincha jarayonni tozalash
-        } catch (err) {
-            console.error("Xatolik:", err);
-            ctx.reply("Xatolik yuz berdi, qaytadan urinib ko'ring.");
-        }
+    cart.forEach(i => {
+        items += `- ${i.name}\n`;
+        total += i.price;
+    });
+
+    orders[orderId] = {
+        userId,
+        phone,
+        latitude,
+        longitude,
+        items,
+        total,
+        status: 'new'
+    };
+
+    // ADMIN
+    await ctx.telegram.sendMessage(
+        ADMIN_ID,
+        `🔔 BUYURTMA #${orderId}
+
+📞 +${phone}
+
+${items}
+
+💰 ${total}
+
+📍 ${map}`,
+        Markup.inlineKeyboard([
+            [Markup.button.callback("🚗 Kuryer tanlash", `send_${orderId}`)]
+        ])
+    );
+
+    await ctx.telegram.sendLocation(ADMIN_ID, latitude, longitude);
+
+    carts[userId] = [];
+
+    ctx.reply("✅ Yuborildi");
+});
+
+// ADMIN → KURYER TANLAYDI
+bot.action(/send_(.+)/, (ctx) => {
+    const orderId = ctx.match[1];
+
+    const buttons = COURIERS.map(c => [
+        Markup.button.callback(c.name, `choose_${orderId}_${c.id}`)
+    ]);
+
+    ctx.reply("Kuryer tanlang:", Markup.inlineKeyboard(buttons));
+});
+
+// KURYERGA YUBORISH
+bot.action(/choose_(.+)_(.+)/, async (ctx) => {
+    const orderId = ctx.match[1];
+    const courierId = Number(ctx.match[2]);
+
+    const order = orders[orderId];
+    if (!order) return;
+
+    if (order.status === 'taken') {
+        return ctx.answerCbQuery("❗ Olingan");
     }
+
+    const courier = COURIERS.find(c => c.id === courierId);
+
+    order.status = 'taken';
+
+    await ctx.telegram.sendMessage(
+        courier.id,
+        `🚗 BUYURTMA #${orderId}
+
+📞 +${order.phone}
+
+${order.items}
+
+💰 ${order.total}`,
+        Markup.inlineKeyboard([
+            [Markup.button.callback("📦 Yetkazildi", `done_${orderId}`)]
+        ])
+    );
+
+    await ctx.telegram.sendLocation(
+        courier.id,
+        order.latitude,
+        order.longitude
+    );
+
+    await ctx.telegram.sendMessage(
+        order.userId,
+        `🚗 Kuryer yo‘lda: ${courier.name}`
+    );
+
+    ctx.editMessageReplyMarkup();
 });
 
-// 6. Buyurtmani bekor qilish (Inline tugma)
-bot.action('cancel_order', async (ctx) => {
-    const userId = ctx.from.id;
-    if (finishedOrders[userId]) {
-        delete finishedOrders[userId];
-        
-        // Adminga bildirishnoma
-        await bot.telegram.sendMessage(ADMIN_ID, `⚠️ Mijoz ${ctx.from.first_name} buyurtmani bekor qildi.`);
-        
-        await ctx.answerCbQuery("Buyurtma bekor qilindi");
-        return ctx.editMessageText("❌ Buyurtmangiz bekor qilindi.");
-    }
-    await ctx.answerCbQuery("Bekor qilinadigan buyurtma topilmadi.");
+// DONE
+bot.action(/done_(.+)/, async (ctx) => {
+    const orderId = ctx.match[1];
+
+    await ctx.telegram.sendMessage(
+        orders[orderId].userId,
+        "📦 Yetkazildi 😋"
+    );
+
+    ctx.editMessageReplyMarkup();
 });
 
-// Botni ishga tushirish
-bot.launch().then(() => {
-    console.log("🚀 Bot muvaffaqiyatli ishga tushdi!");
-});
-
-// Xatoliklarni ushlash
-process.once('SIGINT', () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
-const http = require('http');
-http.createServer((req, res) => {
-  res.write("Bot is running!");
-  res.end();
-}).listen(process.env.PORT || 3000);
-const express = require('express');
+// EXPRESS (RENDER UCHUN)
 const app = express();
-
-app.get('/', (req, res) => {
-    res.send('Bot ishlayapti 🚀');
-});
+app.get('/', (req, res) => res.send("Bot ishlayapti 🚀"));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server ${PORT} da ishlayapti`));
+app.listen(PORT, () => console.log("Server ishladi"));
+
+bot.launch();
+console.log("🚀 FULL BOT ISHLAYAPTI");
