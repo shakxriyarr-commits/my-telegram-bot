@@ -1,6 +1,7 @@
 const { Telegraf, Markup } = require('telegraf');
 const express = require('express');
 
+// Bot tokenini Environment Variable'dan oladi (Render uchun shart)
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
 // ADMIN
@@ -57,7 +58,7 @@ bot.action(/add_(.+)/, (ctx) => {
     if (!carts[userId]) carts[userId] = [];
     carts[userId].push(item);
 
-    ctx.answerCbQuery("Qo‘shildi ✅");
+    ctx.answerCbQuery(`${item.name} qo‘shildi ✅`);
 });
 
 // CART
@@ -73,7 +74,7 @@ bot.hears('🛒 Savatcha', (ctx) => {
         total += i.price;
     });
 
-    text += `\n💰 ${total}`;
+    text += `\n💰 Jami: ${total}`;
 
     ctx.reply(text, Markup.inlineKeyboard([
         [Markup.button.callback("✅ Buyurtma", "order")],
@@ -114,7 +115,7 @@ bot.on('location', async (ctx) => {
     if (!phone || !cart.length) return ctx.reply("❗ Xatolik");
 
     const { latitude, longitude } = ctx.message.location;
-    const map = `https://maps.google.com/?q=${latitude},${longitude}`;
+    const map = `https://maps.google.com{latitude},${longitude}`;
 
     const orderId = Date.now();
 
@@ -127,47 +128,29 @@ bot.on('location', async (ctx) => {
     });
 
     orders[orderId] = {
-        userId,
-        phone,
-        latitude,
-        longitude,
-        items,
-        total,
-        status: 'new'
+        userId, phone, latitude, longitude, items, total, status: 'new'
     };
 
-    // ADMIN
+    // ADMIN XABARI
     await ctx.telegram.sendMessage(
         ADMIN_ID,
-        `🔔 BUYURTMA #${orderId}
-
-📞 +${phone}
-
-${items}
-
-💰 ${total}
-
-📍 ${map}`,
+        `🔔 BUYURTMA #${orderId}\n\n📞 +${phone}\n\n${items}\n💰 ${total}\n\n📍 ${map}`,
         Markup.inlineKeyboard([
             [Markup.button.callback("🚗 Kuryer tanlash", `send_${orderId}`)]
         ])
     );
 
     await ctx.telegram.sendLocation(ADMIN_ID, latitude, longitude);
-
     carts[userId] = [];
-
     ctx.reply("✅ Yuborildi");
 });
 
 // ADMIN → KURYER TANLAYDI
 bot.action(/send_(.+)/, (ctx) => {
     const orderId = ctx.match[1];
-
     const buttons = COURIERS.map(c => [
         Markup.button.callback(c.name, `choose_${orderId}_${c.id}`)
     ]);
-
     ctx.reply("Kuryer tanlang:", Markup.inlineKeyboard(buttons));
 });
 
@@ -175,64 +158,60 @@ bot.action(/send_(.+)/, (ctx) => {
 bot.action(/choose_(.+)_(.+)/, async (ctx) => {
     const orderId = ctx.match[1];
     const courierId = Number(ctx.match[2]);
-
     const order = orders[orderId];
-    if (!order) return;
 
-    if (order.status === 'taken') {
-        return ctx.answerCbQuery("❗ Olingan");
-    }
+    if (!order) return;
+    if (order.status === 'taken') return ctx.answerCbQuery("❗ Olingan");
 
     const courier = COURIERS.find(c => c.id === courierId);
-
     order.status = 'taken';
 
-    await ctx.telegram.sendMessage(
-        courier.id,
-        `🚗 BUYURTMA #${orderId}
-
-📞 +${order.phone}
-
-${order.items}
-
-💰 ${order.total}`,
-        Markup.inlineKeyboard([
-            [Markup.button.callback("📦 Yetkazildi", `done_${orderId}`)]
-        ])
-    );
-
-    await ctx.telegram.sendLocation(
-        courier.id,
-        order.latitude,
-        order.longitude
-    );
-
-    await ctx.telegram.sendMessage(
-        order.userId,
-        `🚗 Kuryer yo‘lda: ${courier.name}`
-    );
-
-    ctx.editMessageReplyMarkup();
+    try {
+        await ctx.telegram.sendMessage(
+            courier.id,
+            `🚗 BUYURTMA #${orderId}\n\n📞 +${order.phone}\n${order.items}\n💰 ${order.total}`,
+            Markup.inlineKeyboard([[Markup.button.callback("📦 Yetkazildi", `done_${orderId}`)]])
+        );
+        await ctx.telegram.sendLocation(courier.id, order.latitude, order.longitude);
+        await ctx.telegram.sendMessage(order.userId, `🚗 Kuryer yo‘lda: ${courier.name}`);
+        ctx.editMessageText(`✅ ${courier.name}ga topshirildi`);
+    } catch (e) {
+        ctx.reply("Kuryerga yuborishda xatolik (Botni boshlamagan bo'lishi mumkin)");
+    }
 });
 
 // DONE
 bot.action(/done_(.+)/, async (ctx) => {
     const orderId = ctx.match[1];
-
-    await ctx.telegram.sendMessage(
-        orders[orderId].userId,
-        "📦 Yetkazildi 😋"
-    );
-
-    ctx.editMessageReplyMarkup();
+    if(orders[orderId]) {
+        await ctx.telegram.sendMessage(orders[orderId].userId, "📦 Yetkazildi 😋");
+        ctx.editMessageText("📦 Yakunlandi");
+    }
 });
 
 // EXPRESS (RENDER UCHUN)
 const app = express();
 app.get('/', (req, res) => res.send("Bot ishlayapti 🚀"));
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("Server ishladi"));
+// Xatolarni ushlash (Botni crash bo'lishidan saqlaydi)
+bot.catch((err) => {
+    console.error('Bot xatosi:', err);
+});
 
-bot.launch();
-console.log("🚀 FULL BOT ISHLAYAPTI");
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server ${PORT} portda ishladi`);
+});
+const axios = require('axios'); // Avval terminalda: npm install axios
+
+setInterval(() => {
+  axios.get('https://sizning-botingiz.onrender.com') // O'z URL manzilingizni qo'ying
+    .then(() => console.log('Self-ping muvaffaqiyatli'))
+    .catch(err => console.error('Ping xatosi:', err.message));
+}, 10 * 60 * 1000); // Har 10 daqiqada ping yuboradi
+
+bot.launch().then(() => console.log("🚀 BOT ISHLAYAPTI"));
+
+// Graceful stop
+process.once('SIGINT', () => bot.stop('SIGINT'));
+process.once('SIGTERM', () => bot.stop('SIGTERM'));
