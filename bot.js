@@ -273,3 +273,15 @@ app.listen(process.env.PORT || 3000, '0.0.0.0');
 
 bot.catch(console.error);
 bot.launch();
+const axios = require('axios'); // Agar axios tepada bo'lmasa, buni eng tepaga qo'shing
+
+// Render dashboard'idan olgan URL manzilingizni shu yerga qo'ying
+const MY_RENDER_URL = "https://coffee-food-bot.onrender.com"; 
+
+// Har 14 daqiqada (Render 15 daqiqada uxlashini hisobga olib) o'z-o'ziga signal yuboradi
+setInterval(() => {
+    axios.get(MY_RENDER_URL)
+        .then(() => console.log("Self-ping muvaffaqiyatli: Bot uyg'oq!"))
+        .catch((err) => console.log("Ping xatosi:", err.message));
+}, 14 * 60 * 1000); // 14 daqiqa = 14 * 60 * 1000 millisoniya
+
