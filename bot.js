@@ -94,8 +94,23 @@ bot.on('location', async (ctx) => {
         const { latitude, longitude } = ctx.message.location;
     
     // YANGI TARTIBLI RAQAMLASH:
-    const orderId = orderCounter.toString(); // Hozirgi raqamni (1, 2, 3...) oladi
-    orderCounter++; // Keyingi buyurtma uchun raqamni bittaga oshiradi
+       // 1. Bazadan hozirgi raqamni olamiz
+    const counterRes = await fetch(`${BASE_URL}/orderCounter.json`);
+    let currentCounter = await counterRes.json();
+    
+    // Agar baza bo'sh bo'lsa 1 dan boshlaymiz
+    if (!currentCounter) currentCounter = 1;
+
+    const orderId = currentCounter.toString();
+
+    // 2. Bazadagi raqamni keyingi safar uchun 1 taga oshirib qo'yamiz
+    await fetch(`${BASE_URL}/orderCounter.json`, {
+        method: "PUT",
+        body: JSON.stringify(currentCounter + 1)
+    });
+
+    // Endi orderId tayyor (#1, #2...)
+
 
     // ... qolgan buyurtma saqlash kodi (orders[orderId] = ...)
 
