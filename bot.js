@@ -223,3 +223,11 @@ bot.action(/cn_(.+)/, (ctx) => {
 });
 
 bot.launch().then(() => console.log("Bot ishga tushdi!"));
+// Render uchun dummy server (Port xatosini yo'qotadi)
+const express = require('express');
+const app = express();
+app.get('/', (req, res) => res.send('Bot is running!'));
+app.listen(process.env.PORT || 3000);
+
+bot.launch().then(() => console.log("Bot ishga tushdi!"));
+
