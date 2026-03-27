@@ -129,3 +129,9 @@ bot.launch().then(() => {
 // Xatoliklarni ushlash
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
+const http = require('http');
+http.createServer((req, res) => {
+  res.write("Bot is running!");
+  res.end();
+}).listen(process.env.PORT || 3000);
+
