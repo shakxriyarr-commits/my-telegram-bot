@@ -230,19 +230,30 @@ bot.action(/ok_(.+)/, async (ctx) => {
 
     if (!order) return;
 
-    // ❗ ASOSIY FIX: DATA SAQLANIB TURIBDI
+    let itemsText = "";
+    order.items.forEach(i => {
+        itemsText += `- ${i.name}\n`;
+    });
+
+    // 🔥 ADMINGA YANGI XABAR + TUGMALAR
     await ctx.telegram.sendMessage(
         ADMIN_ID,
-        `✅ Mijoz rozi (#${orderId})\n📞 +${order.phone}`
+        `✅ Mijoz qolgan mahsulotlarga rozi (#${orderId})\n\n` +
+        `📞 +${order.phone}\n\n${itemsText}\n💰 ${order.total} so'm`,
+        Markup.inlineKeyboard([
+            [Markup.button.callback("🚗 Kuryer yuborish", `sd_${orderId}`)],
+            [Markup.button.callback("🚫 Bekor qilish", `cn_${orderId}`)]
+        ])
     );
 
+    // LOKATSIYANI QAYTA YUBORAMIZ
     await ctx.telegram.sendLocation(
         ADMIN_ID,
         order.latitude,
         order.longitude
     );
 
-    ctx.editMessageText("✅ Tasdiqlandi");
+    ctx.editMessageText("✅ Buyurtma tasdiqlandi");
 });
 
 // 🚗 KURYER
