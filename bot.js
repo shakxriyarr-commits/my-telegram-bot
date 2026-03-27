@@ -230,4 +230,18 @@ app.get('/', (req, res) => res.send('Bot is running!'));
 app.listen(process.env.PORT || 3000);
 
 bot.launch().then(() => console.log("Bot ishga tushdi!"));
+const express = require('express');
+const app = express();
+
+// Cron-job aynan shu manzilga so'rov yuboradi
+app.get('/', (req, res) => {
+    res.send('Bot uyg‘oq! ✅');
+});
+
+// Render taqdim etadigan PORT-ni eshitadi
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Server ${PORT}-portda ishlamoqda...`);
+});
+
 
