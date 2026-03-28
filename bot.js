@@ -174,15 +174,34 @@ bot.on('location', async (ctx) => {
     carts[userId] = [];
 });
 
-bot.hears('🗂 Buyurtmalarim', (ctx) => {
-    const my = Object.keys(orders).filter(id => orders[id].userId === ctx.from.id);
-    if (!my.length) return ctx.reply("Faol buyurtmalar yo'q.");
-    my.forEach(id => {
-        const o = orders[id];
-        let text = `📦 *#${id}*\n📋 ${o.items.map(i=>i.name).join(', ')}\n💰 ${o.total.toLocaleString()} so'm\n📊 *${o.status}*`;
-        const btn = !o.lockCancel ? Markup.inlineKeyboard([[Markup.button.callback("🚫 Bekor qilish", `u_cn_${id}`)]]) : null;
-        ctx.replyWithMarkdown(text, btn);
-    });
+// --- MIJOZ BUYURTMALARIMDAN BEKOR QILSA ---
+bot.action(/u_cn_(.+)/, async (ctx) => {
+    const orderId = ctx.match[1]; // Buyurtma ID sini olish
+    const order = orders[orderId];
+
+    if (order) {
+        // 1. Agar admin allaqachon tayyorlashni boshlagan bo'lsa (bloklangan bo'lsa)
+        if (order.lockCancel) {
+            return ctx.answerCbQuery("❌ Kechirasiz, buyurtma tayyorlanmoqda, uni endi bekor qilib bo'lmaydi!", { show_alert: true });
+        }
+
+        // 2. ADMINGA SMS YUBORISH (Siz so'ragan qism)
+        try {
+            await bot.telegram.sendMessage(ADMIN_ID, `⚠️ *BUYURTMA BEKOR QILINDI (#${orderId})*\n\nMijoz buyurtmani o'z xohishiga ko'ra bekor qildi.`, { parse_mode: 'Markdown' });
+        } catch (err) {
+            console.log("Admin xabarnoma yuborishda xato:", err);
+        }
+
+        // 3. Mijozning o'ziga tasdiq xabari
+        await ctx.editMessageText(`🚫 Buyurtmangiz #${orderId} muvaffaqiyatli bekor qilindi.`);
+
+        // 4. Admin xotirasidan (orders ro'yxatidan) butunlay o'chirib tashlash
+        delete orders[orderId];
+        
+        await ctx.answerCbQuery("Buyurtma bekor qilindi ✅");
+    } else {
+        await ctx.answerCbQuery("❌ Buyurtma allaqachon bekor qilingan yoki topilmadi.");
+    }
 });
 
 // --- ADMIN & KURYER ---
