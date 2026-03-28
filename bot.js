@@ -5,32 +5,34 @@ const express = require('express');
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const ADMIN_ID = 7312694067;
 
+// ===== SERVER =====
 const app = express();
 app.get('/', (req, res) => res.send('Bot is running!'));
 app.listen(process.env.PORT || 3000);
 
 // ===== DATA =====
 let orderCounter = 1;
-let stats = { totalSum: 0, items: {} };
+let carts = {};
+let orders = {};
+let users = {};
+let stats = { totalSum: 0 };
 let courierStats = {};
 let adminState = {};
 
+// ===== COURIERS =====
 const COURIERS = [
     { id: 6382827314, name: "Shahriyor" },
     { id: 222222222, name: "Vali" }
 ];
 
+// ===== MENU =====
 let menu = [
     { id: 'b1', name: '🍔 Burger', price: 30000 },
-    { id: 'b2', name: '🍔 Burger dvaynoy', price: 35000 },
+    { id: 'b2', name: '🍔 Double Burger', price: 35000 },
     { id: 'l1', name: '🌯 Lavash', price: 32000 },
     { id: 'd1', name: '🥤 Cola', price: 10000 },
     { id: 's1', name: '🍰 Tort', price: 20000 }
 ];
-
-let carts = {};
-let orders = {};
-let users = {};
 
 // ===== KEYBOARDS =====
 const mainKeyboard = Markup.keyboard([
@@ -50,13 +52,13 @@ const courierKeyboard = Markup.keyboard([
 // ===== START =====
 bot.start((ctx) => {
     const id = ctx.from.id;
-    if (id === ADMIN_ID) ctx.reply("Admin panel", adminKeyboard);
-    else if (COURIERS.some(c => c.id === id)) ctx.reply("Kuryer panel", courierKeyboard);
-    else ctx.reply("Xush kelibsiz 👋", mainKeyboard);
+    if (id === ADMIN_ID) return ctx.reply("Admin panel", adminKeyboard);
+    if (COURIERS.some(c => c.id === id)) return ctx.reply("Kuryer panel", courierKeyboard);
+    ctx.reply("Xush kelibsiz 👋", mainKeyboard);
 });
 
 // ===== MENU CATEGORY =====
-bot.hears('🍴 Menyu', (ctx) => {
+bot.hears('🍴 Menyu', ctx => {
     ctx.reply("Tanlang:", Markup.keyboard([
         ['🍔 Fastfood'],
         ['🥤 Ichimliklar'],
@@ -65,23 +67,23 @@ bot.hears('🍴 Menyu', (ctx) => {
     ]).resize());
 });
 
-function getItems(type) {
+function filterMenu(type) {
     if (type === 'fastfood') return menu.filter(i => i.id.startsWith('b') || i.id.startsWith('l'));
     if (type === 'drinks') return menu.filter(i => i.id.startsWith('d'));
     if (type === 'sweets') return menu.filter(i => i.id.startsWith('s'));
 }
 
-function show(ctx, type) {
-    const items = getItems(type);
+function showMenu(ctx, type) {
+    const items = filterMenu(type);
     const btns = items.map(i =>
         Markup.button.callback(`${i.name}\n${i.price}`, `add_${i.id}`)
     );
     ctx.reply("Tanlang:", Markup.inlineKeyboard(btns, { columns: 2 }));
 }
 
-bot.hears('🍔 Fastfood', ctx => show(ctx, 'fastfood'));
-bot.hears('🥤 Ichimliklar', ctx => show(ctx, 'drinks'));
-bot.hears('🍰 Shirinliklar', ctx => show(ctx, 'sweets'));
+bot.hears('🍔 Fastfood', ctx => showMenu(ctx, 'fastfood'));
+bot.hears('🥤 Ichimliklar', ctx => showMenu(ctx, 'drinks'));
+bot.hears('🍰 Shirinliklar', ctx => showMenu(ctx, 'sweets'));
 bot.hears('⬅️ Orqaga', ctx => ctx.reply("Menu:", mainKeyboard));
 
 // ===== ADD =====
@@ -93,7 +95,7 @@ bot.action(/add_(.+)/, ctx => {
 });
 
 // ===== CART =====
-bot.hears('🛒 Savatcha', (ctx) => {
+bot.hears('🛒 Savatcha', ctx => {
     const cart = carts[ctx.from.id] || [];
     if (!cart.length) return ctx.reply("Bo'sh");
 
@@ -133,6 +135,7 @@ bot.on('contact', ctx => {
 bot.on('location', async ctx => {
     const id = ctx.from.id;
     const cart = carts[id];
+    if (!cart || !cart.length) return;
 
     const total = cart.reduce((a,b)=>a+b.price,0);
     const orderId = orderCounter++;
@@ -155,15 +158,16 @@ bot.on('location', async ctx => {
 });
 
 // ===== BUYURTMALARIM =====
-bot.hears('🗂 Buyurtmalarim', (ctx) => {
+bot.hears('🗂 Buyurtmalarim', ctx => {
     const my = Object.keys(orders).filter(id => orders[id].userId === ctx.from.id);
 
-    if (!my.length) return ctx.reply("Yo'q");
+    if (!my.length) return ctx.reply("Buyurtma yo'q");
 
     my.forEach(id => {
         const o = orders[id];
+
         const btn = !o.lockCancel
-            ? Markup.inlineKeyboard([[Markup.button.callback("Bekor qilish", `u_cn_${id}`)]])
+            ? Markup.inlineKeyboard([[Markup.button.callback("Bekor qilish", `cancel_${id}`)]])
             : null;
 
         ctx.reply(`#${id}\n${o.items.map(i=>i.name).join(', ')}\n${o.status}`, btn);
@@ -171,7 +175,7 @@ bot.hears('🗂 Buyurtmalarim', (ctx) => {
 });
 
 // ===== CANCEL =====
-bot.action(/u_cn_(.+)/, ctx => {
+bot.action(/cancel_(.+)/, ctx => {
     const id = ctx.match[1];
     if (!orders[id].lockCancel) {
         delete orders[id];
@@ -179,7 +183,7 @@ bot.action(/u_cn_(.+)/, ctx => {
     }
 });
 
-// ===== ADMIN ORDER =====
+// ===== ADMIN =====
 async function sendOrderToAdmin(id) {
     const o = orders[id];
 
@@ -187,7 +191,6 @@ async function sendOrderToAdmin(id) {
         `#${id}\n${o.items.map(i=>i.name).join(', ')}`,
         Markup.inlineKeyboard([
             [Markup.button.callback("👨‍🍳 Tayyorlash", `lock_${id}`)],
-            [Markup.button.callback("❌ Rad", `rej_${id}`)],
             [Markup.button.callback("⚠️ Tugagan", `out_${id}`)],
             [Markup.button.callback("⏳ Kutish", `busy_${id}`)]
         ])
@@ -220,7 +223,7 @@ bot.action(/lock_(.+)/, ctx => {
         [Markup.button.callback(c.name, `ch_${id}_${c.id}`)]
     );
 
-    ctx.editMessageText("Kuryer:", Markup.inlineKeyboard(btns));
+    ctx.editMessageText("Kuryer tanlang:", Markup.inlineKeyboard(btns));
 });
 
 // ===== COURIER =====
@@ -233,27 +236,36 @@ bot.action(/ch_(.+)_(.+)/, ctx => {
     bot.telegram.sendMessage(cid,
         `#${id}\n${o.items.map(i=>i.name).join(', ')}`,
         Markup.inlineKeyboard([
-            [Markup.button.callback("Qabul qildim", `c_take_${id}`)],
-            [Markup.button.callback("Topshirdim", `c_done_${id}`)]
+            [Markup.button.callback("✅ Qabul qildim", `c_take_${id}`)],
+            [Markup.button.callback("🏁 Topshirdim", `c_done_${id}`)]
         ])
     );
 
     bot.telegram.sendLocation(cid, o.latitude, o.longitude);
 });
 
-// ===== 🔥 MUHIM =====
-bot.action(/c_take_(.+)/, ctx => {
+// ===== 🔥 FIXED =====
+bot.action(/c_take_(.+)/, async ctx => {
     const id = ctx.match[1];
-    bot.telegram.sendMessage(orders[id].userId,
+    await bot.telegram.sendMessage(orders[id].userId,
         "🚚 Buyurtmangiz yo‘lda!");
 });
 
 // ===== DONE =====
 bot.action(/c_done_(.+)/, ctx => {
     const id = ctx.match[1];
-    bot.telegram.sendMessage(orders[id].userId, "Yetkazildi");
+    bot.telegram.sendMessage(orders[id].userId, "🏁 Yetkazildi");
+
+    stats.totalSum += orders[id].total;
+    courierStats[ctx.from.id] = (courierStats[ctx.from.id] || 0) + 1;
+
     delete orders[id];
 });
 
-// ===== START =====
-bot.launch();
+// ===== SAFE LAUNCH (409 FIX) =====
+bot.launch({
+    dropPendingUpdates: true
+});
+
+process.once('SIGINT', () => bot.stop('SIGINT'));
+process.once('SIGTERM', () => bot.stop('SIGTERM'));
