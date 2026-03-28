@@ -269,28 +269,79 @@ bot.action(/sd_(.+)/, (ctx) => {
     ctx.editMessageText(`Kuryerni tanlang:`, Markup.inlineKeyboard(buttons));
 });
 
+// --- 1. ADMIN: KURYERGA YUBORISH (KURYERGA 2 TA TUGMA BILAN BORADI) ---
 bot.action(/ch_(.+)_(.+)/, (ctx) => {
     const orderId = ctx.match[1];
-    const cId = ctx.match[2];
-    if (orders[orderId]) {
-        orders[orderId].status = 'Yo\'lda';
-        bot.telegram.sendMessage(cId, `📦 BUYURTMA #${orderId}\n💰 ${orders[orderId].total} so'm`, Markup.inlineKeyboard([[Markup.button.callback("🏁 Topshirdim", `c_done_${orderId}`)]]));
-        bot.telegram.sendLocation(cId, orders[orderId].latitude, orders[orderId].longitude);
-        ctx.editMessageText(`✅ #${orderId} kuryerga yuborildi.`);
+    const courierId = ctx.match[2];
+    const order = orders[orderId];
+    
+    if (order) {
+        order.status = 'Kuryerga berildi';
+        // Kuryerga xabar va 2 ta tugma: "Qabul qildim" va "Topshirdim"
+        bot.telegram.sendMessage(courierId, `📦 *YANGI BUYURTMA #${orderId}*\n\n📞 Tel: +${order.phone}\n💰 Summa: ${order.total.toLocaleString()} so'm`, {
+            parse_mode: 'Markdown',
+            ...Markup.inlineKeyboard([
+                [Markup.button.callback("✅ Qabul qildim", `c_take_${orderId}`)],
+                [Markup.button.callback("🏁 Topshirdim", `c_done_${orderId}`)]
+            ])
+        });
+        // Kuryerga mijoz lokatsiyasini yuborish
+        bot.telegram.sendLocation(courierId, order.latitude, order.longitude);
+        ctx.editMessageText(`✅ #${orderId}-buyurtma kuryerga muvaffaqiyatli yuborildi.`);
     }
 });
 
-bot.action(/c_done_(.+)/, (ctx) => {
-    const id = ctx.match[1];
-    const order = orders[id];
+// --- 2. KURYER: QABUL QILDIM (MIJOZGA "YO'LDA" XABARI BORADI) ---
+bot.action(/c_take_(.+)/, async (ctx) => {
+    const orderId = ctx.match[1];
+    const order = orders[orderId];
+
     if (order) {
+        order.status = 'Yo\'lda 🚚';
+        
+        // MIJOZGA SMS YUBORISH (Siz so'ragan qism)
+        await bot.telegram.sendMessage(order.userId, `🚀 *Buyurtmangiz yo'lda!* \n\nKuryer buyurtmangizni qabul qildi va yetkazib berish uchun yo'lga chiqdi. Iltimos, aloqada bo'ling! 🚚`, { parse_mode: 'Markdown' });
+
+        await ctx.answerCbQuery("Mijozga bildirishnoma yuborildi! ✅");
+
+        // Kuryer ekranida "Qabul qildim" tugmasini olib tashlab, faqat "Topshirdim"ni qoldiramiz
+        await ctx.editMessageReplyMarkup(Markup.inlineKeyboard([
+            [Markup.button.callback("🏁 Topshirdim", `c_done_${orderId}`)]
+        ]).reply_markup);
+    } else {
+        await ctx.answerCbQuery("❌ Buyurtma topilmadi yoki allaqachon yakunlangan.");
+    }
+});
+
+// --- 3. KURYER: TOPSHIRDIM (YAKUNLASH VA ADMINGA HISOBOT) ---
+bot.action(/c_done_(.+)/, (ctx) => {
+    const orderId = ctx.match[1];
+    const order = orders[orderId];
+    const courierId = ctx.from.id;
+
+    if (order) {
+        // Kunlik statistikani yangilash
         stats.totalSum += order.total;
-        order.items.forEach(i => stats.items[i.name] = (stats.items[i.name] || 0) + 1);
-        courierStats[ctx.from.id] = (courierStats[ctx.from.id] || 0) + 1;
-        bot.telegram.sendMessage(order.userId, `🏁 Buyurtma yetkazildi! 👋`);
-        bot.telegram.sendMessage(ADMIN_ID, `✅ #${id} topshirildi! Jami: ${stats.totalSum} so'm`);
-        ctx.editMessageText(`🏁 Yakunlandi. Bugun: ${courierStats[ctx.from.id]} ta`);
-        delete orders[id];
+        order.items.forEach(i => {
+            stats.items[i.name] = (stats.items[i.name] || 0) + 1;
+        });
+        
+        // Kuryerning shaxsiy statistikasini yangilash
+        courierStats[courierId] = (courierStats[courierId] || 0) + 1;
+
+        // Mijozga yakuniy xabar
+        bot.telegram.sendMessage(order.userId, `🏁 Buyurtmangiz yetkazildi. Yoqimli ishtaha! 👋`);
+        
+        // Adminga pul miqdori bilan hisobot yuborish
+        bot.telegram.sendMessage(ADMIN_ID, `✅ *BUYURTMA #${orderId} TOPSHIRILDI!*\n\n💰 Summa: ${order.total.toLocaleString()} so'm\n📈 Bugun jami tushum: ${stats.totalSum.toLocaleString()} so'm`, { parse_mode: 'Markdown' });
+        
+        // Kuryerga tasdiq xabari
+        ctx.editMessageText(`🏁 #${orderId} buyurtma yakunlandi. \n✅ Bugun jami: ${courierStats[courierId]} ta buyurtma topshirdingiz. Barakangizni bersin! 🚀`);
+        
+        // Buyurtmani faol ro'yxatdan o'chirish
+        delete orders[orderId];
+    } else {
+        ctx.answerCbQuery("❌ Xatolik: Buyurtma topilmadi.");
     }
 });
 
