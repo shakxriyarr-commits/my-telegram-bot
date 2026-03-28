@@ -59,9 +59,9 @@ bot.start((ctx) => {
     ctx.reply("Xush kelibsiz 👋", mainKeyboard);
 });
 
-// ===== MENU CATEGORY =====
+// ===== MENU =====
 bot.hears('🍴 Menyu', (ctx) => {
-    ctx.reply("Kategoriya tanlang:", Markup.keyboard([
+    ctx.reply("Kategoriya:", Markup.keyboard([
         ['🍔 Fastfood'],
         ['🥤 Ichimliklar'],
         ['🍰 Shirinliklar'],
@@ -190,7 +190,7 @@ bot.action(/cancel_(.+)/, async ctx => {
 
 // ===== ADMIN SEND =====
 async function sendOrderToAdmin(id) {
-    const o = orders[id;
+    const o = orders[id]; // ✅ FIX
 
     await bot.telegram.sendMessage(ADMIN_ID,
         `🆕 #${id}\n${o.items.map(i=>i.name).join(', ')}\n💰 ${o.total}`,
@@ -221,13 +221,11 @@ bot.action(/lock_(.+)/, ctx => {
 });
 
 bot.action(/busy_(.+)/, ctx => {
-    bot.telegram.sendMessage(orders[ctx.match[1]].userId,
-        "⏳ Buyurtma ko‘p, kuting");
+    bot.telegram.sendMessage(orders[ctx.match[1]].userId, "⏳ Buyurtma ko‘p, kuting");
 });
 
 bot.action(/out_(.+)/, ctx => {
-    bot.telegram.sendMessage(orders[ctx.match[1]].userId,
-        "⚠️ Mahsulot tugagan");
+    bot.telegram.sendMessage(orders[ctx.match[1]].userId, "⚠️ Mahsulot tugagan");
 });
 
 // ===== COURIER =====
