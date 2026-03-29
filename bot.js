@@ -67,7 +67,30 @@ async function sendOrderToAdmin(orderId) {
     });
     await bot.telegram.sendLocation(ADMIN_ID, order.latitude, order.longitude);
 }
+// Saytdan kelgan kuryer tugmalarini tutish
+bot.action(/courier_(sh|al)/, async (ctx) => {
+    const type = ctx.match[1];
+    const courierName = type === 'sh' ? "Shahriyor" : "Ali";
+    const courierId = type === 'sh' ? 6382827314 : 222222222; // Alining haqiqiy ID sini yozing
+    
+    const originalText = ctx.callbackQuery.message.text;
 
+    try {
+        // Kuryerga yuborish
+        await bot.telegram.sendMessage(courierId, `🚴‍♂️ **Sizga yangi buyurtma biriktirildi!**\n\n${originalText}`, { parse_mode: 'Markdown' });
+        
+        // Admindagi xabarni yangilash
+        await ctx.editMessageText(`${originalText}\n\n✅ **${courierName}ga yuborildi!**`);
+        await ctx.answerCbQuery(`${courierName}ga yuborildi!`);
+    } catch (err) {
+        await ctx.answerCbQuery("Xatolik! Kuryer botni yoqmagan bo'lishi mumkin.");
+    }
+});
+
+// Saytdan kelgan Rad etish tugmasi uchun
+bot.action("rej_order", (ctx) => {
+    ctx.editMessageText(ctx.callbackQuery.message.text + "\n\n❌ **Buyurtma rad etildi.**");
+});
 // --- START ---
 bot.start((ctx) => {
     const userId = ctx.from.id;
