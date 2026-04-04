@@ -3,7 +3,7 @@ const express = require('express');
 
 // 1. ASOSIY SOZLAMALAR
 const bot = new Telegraf(process.env.BOT_TOKEN);
-const ADMIN_ID = 7312694067; 
+const ADMIN_ID = 8448862547; 
 
 const app = express();
 app.get('/', (req, res) => res.send('Bot is running!'));
