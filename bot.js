@@ -6,7 +6,7 @@ const bot = new Telegraf(process.env.BOT_TOKEN); // Botingizning asosiy tokeni
 const ADMIN_ID = 8448862547; 
 
 // BotFatherdan olingan to'liq PROVIDER TOKENni shu yerga qo'ying:
-const PAYMENT_TOKEN = '8740580495:TEST:999999999_F91D8F69C042267444B74CC0B3C747757EB0E065'; 
+const PAYMENT_TOKEN = '398062629:TEST:999999999_F91D8F69C042267444B74CC0B3C747757EB0E065'; 
 
 const app = express();
 app.get('/', (req, res) => res.send('Bot is running!'));
