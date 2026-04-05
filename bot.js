@@ -1,11 +1,11 @@
 const { Telegraf, Markup } = require('telegraf');
 const express = require('express');
 
-// 1. ASOSIY SOZLAMALAR
+// 1. SOZLAMALAR
 const bot = new Telegraf(process.env.BOT_TOKEN); 
 const ADMIN_ID = 8448862547; 
 
-// Siz yuborgan Provider Token (BotFather'dan olingan)
+// Siz yuborgan Provider Token (BotFather -> Payments -> Click/Payme)
 const PAYMENT_TOKEN = '398062629:TEST:999999999_F91D8F69C042267444B74CC0B3C747757EB0E065'; 
 
 const app = express();
@@ -32,7 +32,7 @@ let carts = {};
 let orders = {};
 let users = {};
 
-// 2. KLAVIATURALAR (TO'LIQ IERARXIYA)
+// 2. KLAVIATURALAR
 const mainKeyboard = Markup.keyboard([
     ['🍴 Menyu', '🛒 Savatcha'],
     ['🗂 Buyurtmalarim', '📞 Aloqa']
@@ -49,10 +49,11 @@ const courierKeyboard = Markup.keyboard([
     ['🏠 Mijoz menyusiga o\'tish']
 ]).resize();
 
-// --- FUNKSIYA: ADMINGA BUYURTMA YUBORISH (HAMMA TUGMALAR BILAN) ---
+// 3. ADMINGA BUYURTMA YUBORISH FUNKSIYASI (TO'LIQ DETALLARI BILAN)
 async function sendOrderToAdmin(orderId) {
     const order = orders[orderId];
     if (!order) return;
+    
     let itemsText = order.items.map((i, idx) => `${idx + 1}. ${i.name}`).join('\n');
     let paymentStatus = order.paymentType === 'cash' ? "💵 Naqd" : "💳 Karta orqali (To'langan ✅)";
     
@@ -60,56 +61,60 @@ async function sendOrderToAdmin(orderId) {
         parse_mode: 'Markdown',
         ...Markup.inlineKeyboard([
             [
-                Markup.button.callback("🚚 Shahriyor", `ch_${orderId}_6382827314`),
-                Markup.button.callback("🚚 Ali", `ch_${orderId}_222222222`)
+                Markup.button.callback("🚚 Shahriyor", `assign_${orderId}_6382827314`),
+                Markup.button.callback("🚚 Ali", `assign_${orderId}_222222222`)
             ],
             [Markup.button.callback("👨‍🍳 Tayyorlash (Bloklash)", `lock_${orderId}`)],
-            [Markup.button.callback("❌ Rad etish", `rej_${orderId}`)],
+            [Markup.button.callback("❌ Rad etish", `reject_${orderId}`)],
             [Markup.button.callback("⚠️ Mahsulot tugagan", `out_list_${orderId}`)],
-            [Markup.button.callback("⏳ Buyurtma ko'p (Ogohlantirish)", `busy_${orderId}`)]
+            [Markup.button.callback("⏳ Buyurtma ko'p (Ogohlantirish)", `busy_warn_${orderId}`)]
         ])
     });
     await bot.telegram.sendLocation(ADMIN_ID, order.latitude, order.longitude);
 }
 
-// --- START VA ROLLARI ---
+// 4. BOT START VA ROLLAR
 bot.start((ctx) => {
     const userId = ctx.from.id;
-    if (userId === ADMIN_ID) ctx.reply("Admin panel! 🛠", adminKeyboard);
-    else if (COURIERS.some(c => c.id === userId)) ctx.reply("Kuryer paneli! 🚗", courierKeyboard);
-    else ctx.reply("Coffee Food botiga xush kelibsiz! 👋", mainKeyboard);
+    if (userId === ADMIN_ID) {
+        ctx.reply("Assalomu alaykum Admin! Tanlang:", adminKeyboard);
+    } else if (COURIERS.some(c => c.id === userId)) {
+        ctx.reply("Kuryer paneliga xush kelibsiz!", courierKeyboard);
+    } else {
+        ctx.reply("Coffee Food botiga xush kelibsiz!", mainKeyboard);
+    }
 });
 
-// --- ADMIN: TAOM BOSHQARUVI (TO'LIQ LOGIKA) ---
+// 5. ADMIN: TAOM BOSHQARUV LOGIKASI
 bot.hears('➕ Taom qo\'shish', (ctx) => {
     if (ctx.from.id !== ADMIN_ID) return;
-    adminState[ctx.from.id] = { step: 'name' };
-    ctx.reply("Yangi taom nomini yozing:");
+    adminState[ctx.from.id] = { step: 'add_name' };
+    ctx.reply("Yangi taom nomini kiriting:");
 });
 
 bot.hears('✏️ Narxni o\'zgartirish', (ctx) => {
     if (ctx.from.id !== ADMIN_ID) return;
-    const buttons = menu.map(i => [Markup.button.callback(i.name, `edit_p_${i.id}`)]);
-    ctx.reply("Narxni o'zgartirish uchun taomni tanlang:", Markup.inlineKeyboard(buttons));
+    const btns = menu.map(i => [Markup.button.callback(i.name, `edit_pr_${i.id}`)]);
+    ctx.reply("Narxini o'zgartirmoqchi bo'lgan taomni tanlang:", Markup.inlineKeyboard(btns));
 });
 
 bot.hears('🗑 Taomni o\'chirish', (ctx) => {
     if (ctx.from.id !== ADMIN_ID) return;
-    const buttons = menu.map(i => [Markup.button.callback(`🗑 ${i.name}`, `del_i_${i.id}`)]);
-    ctx.reply("O'chirish uchun taomni tanlang:", Markup.inlineKeyboard(buttons));
+    const btns = menu.map(i => [Markup.button.callback(`🗑 ${i.name}`, `del_item_${i.id}`)]);
+    ctx.reply("O'chirish uchun tanlang:", Markup.inlineKeyboard(btns));
 });
 
-bot.action(/edit_p_(.+)/, (ctx) => {
-    adminState[ctx.from.id] = { step: 'new_price', itemId: ctx.match[1] };
-    ctx.reply("Yangi narxni kiriting:");
+bot.action(/edit_pr_(.+)/, (ctx) => {
+    adminState[ctx.from.id] = { step: 'edit_price', itemId: ctx.match[1] };
+    ctx.reply("Yangi narxni kiriting (faqat raqam):");
 });
 
-bot.action(/del_i_(.+)/, (ctx) => {
+bot.action(/del_item_(.+)/, (ctx) => {
     const id = ctx.match[1];
-    const idx = menu.findIndex(i => i.id === id);
-    if (idx !== -1) {
-        menu.splice(idx, 1);
-        ctx.editMessageText("✅ Taom menyudan olib tashlandi.");
+    const index = menu.findIndex(i => i.id === id);
+    if (index !== -1) {
+        menu.splice(index, 1);
+        ctx.editMessageText("✅ Taom menyudan o'chirildi.");
     }
 });
 
@@ -118,86 +123,85 @@ bot.on('text', (ctx, next) => {
     const state = adminState[userId];
     if (!state || userId !== ADMIN_ID) return next();
 
-    if (state.step === 'name') {
+    if (state.step === 'add_name') {
         state.name = ctx.message.text;
-        state.step = 'price';
-        ctx.reply(`${state.name} uchun narxni raqamlarda yozing:`);
-    } else if (state.step === 'price') {
-        const price = parseInt(ctx.message.text);
-        if (isNaN(price)) return ctx.reply("Faqat raqam kiriting:");
-        menu.push({ id: 'm' + Date.now(), name: state.name, price });
+        state.step = 'add_price';
+        ctx.reply(`${state.name} uchun narx kiriting:`);
+    } else if (state.step === 'add_price') {
+        const pr = parseInt(ctx.message.text);
+        if (isNaN(pr)) return ctx.reply("Iltimos, faqat raqam kiriting!");
+        menu.push({ id: 'm' + Date.now(), name: state.name, price: pr });
         delete adminState[userId];
-        ctx.reply("✅ Yangi taom qo'shildi!", adminKeyboard);
-    } else if (state.step === 'new_price') {
-        const price = parseInt(ctx.message.text);
-        if (isNaN(price)) return ctx.reply("Faqat raqam kiriting:");
+        ctx.reply("✅ Taom muvaffaqiyatli qo'shildi!", adminKeyboard);
+    } else if (state.step === 'edit_price') {
+        const pr = parseInt(ctx.message.text);
+        if (isNaN(pr)) return ctx.reply("Iltimos, faqat raqam kiriting!");
         const item = menu.find(i => i.id === state.itemId);
-        if (item) item.price = price;
+        if (item) item.price = pr;
         delete adminState[userId];
-        ctx.reply("✅ Narx muvaffaqiyatli yangilandi!", adminKeyboard);
+        ctx.reply("✅ Narx yangilandi!", adminKeyboard);
     }
 });
 
-// --- MIJOZ: MENYU VA SAVATCHA ---
+// 6. MIJOZ: MENYU VA SAVATCHA LOGIKASI
 bot.hears('🍴 Menyu', (ctx) => {
-    const buttons = menu.map(i => Markup.button.callback(`${i.name}\n${i.price.toLocaleString()} so'm`, `add_${i.id}`));
-    ctx.reply("Taom tanlang:", Markup.inlineKeyboard(buttons, { columns: 2 }));
+    const btns = menu.map(i => Markup.button.callback(`${i.name} - ${i.price.toLocaleString()} so'm`, `add_to_cart_${i.id}`));
+    ctx.reply("Taom tanlang:", Markup.inlineKeyboard(btns, { columns: 1 }));
 });
 
-bot.action(/add_(.+)/, async (ctx) => {
+bot.action(/add_to_cart_(.+)/, async (ctx) => {
     const id = ctx.match[1];
     const item = menu.find(i => i.id === id);
     if (!carts[ctx.from.id]) carts[ctx.from.id] = [];
     carts[ctx.from.id].push({ ...item });
-    await ctx.answerCbQuery(`${item.name} qo'shildi ✅`);
+    await ctx.answerCbQuery(`${item.name} savatchaga qo'shildi!`);
 });
 
 bot.hears('🛒 Savatcha', (ctx) => {
     const cart = carts[ctx.from.id] || [];
-    if (cart.length === 0) return ctx.reply("Savatchangiz hozircha bo'sh 🛒");
-    
+    if (cart.length === 0) return ctx.reply("Savatchangiz bo'sh 🛒");
+
     let total = 0;
-    let text = "🛒 *Savatchangiz:*\n\n";
-    cart.forEach((i, idx) => {
-        text += `${idx + 1}. ${i.name} — ${i.price.toLocaleString()} so'm\n`;
-        total += i.price;
+    let msg = "🛒 *Savatchangiz:*\n\n";
+    cart.forEach((item, index) => {
+        msg += `${index + 1}. ${item.name} — ${item.price.toLocaleString()} so'm\n`;
+        total += item.price;
     });
-    
-    ctx.replyWithMarkdown(`${text}\n💰 *Jami:* ${total.toLocaleString()} so'm`, Markup.inlineKeyboard([
-        [Markup.button.callback("✅ Buyurtma berish", "order_start")],
-        [Markup.button.callback("🗑 Tozalash", "clear_cart")]
+
+    ctx.replyWithMarkdown(`${msg}\n💰 *Jami:* ${total.toLocaleString()} so'm`, Markup.inlineKeyboard([
+        [Markup.button.callback("✅ Buyurtma berish", "checkout")],
+        [Markup.button.callback("🗑 Tozalash", "clear_all")]
     ]));
 });
 
-bot.action('clear_cart', (ctx) => {
+bot.action('clear_all', (ctx) => {
     carts[ctx.from.id] = [];
-    ctx.editMessageText("Savatcha tozalandi.");
+    ctx.editMessageText("Savatcha tozalandi 🗑");
 });
 
-bot.action('order_start', (ctx) => {
-    ctx.reply("📞 Telefon raqamingizni yuboring:", 
-        Markup.keyboard([[Markup.button.contactRequest("📞 Raqamni yuborish")]]).resize().oneTime());
+// 7. BUYURTMA BERISH JARAYONI
+bot.action('checkout', (ctx) => {
+    ctx.reply("Raqamingizni yuboring:", Markup.keyboard([[Markup.button.contactRequest("📞 Raqamni yuborish")]]).resize().oneTime());
 });
 
 bot.on('contact', (ctx) => {
-    users[ctx.from.id] = { ...users[ctx.from.id], phone: ctx.message.contact.phone_number };
-    ctx.reply("📍 Yetkazish manzilini yuboring:", 
-        Markup.keyboard([[Markup.button.locationRequest("📍 Lokatsiyani yuborish")]]).resize().oneTime());
+    users[ctx.from.id] = { phone: ctx.message.contact.phone_number };
+    ctx.reply("Manzilingizni (lokatsiya) yuboring:", Markup.keyboard([[Markup.button.locationRequest("📍 Lokatsiya yuborish")]]).resize().oneTime());
 });
 
 bot.on('location', async (ctx) => {
     const userId = ctx.from.id;
-    if (!carts[userId] || carts[userId].length === 0) return ctx.reply("Savatcha bo'sh!");
-    
+    if (!carts[userId] || carts[userId].length === 0) return;
     users[userId].location = ctx.message.location;
-    await ctx.reply("💳 To'lov turini tanlang:", Markup.inlineKeyboard([
-        [Markup.button.callback("💵 Naqd", "pay_cash")],
-        [Markup.button.callback("💳 Click / Payme", "pay_card")]
+
+    await ctx.reply("To'lov turini tanlang:", Markup.inlineKeyboard([
+        [Markup.button.callback("💵 Naqd", "order_cash")],
+        [Markup.button.callback("💳 Karta (Click/Payme)", "order_card")]
     ]));
 });
 
-// --- TO'LOV AMALLARI ---
-bot.action('pay_cash', async (ctx) => {
+// 8. TO'LOV VA BUYURTMA YAKUNI
+bot.action('order_cash', async (ctx) => {
     const userId = ctx.from.id;
     const cart = carts[userId];
     const orderId = (orderCounter++).toString();
@@ -214,28 +218,26 @@ bot.action('pay_cash', async (ctx) => {
         paymentType: 'cash'
     };
 
-    await ctx.editMessageText(`✅ Buyurtma #${orderId} qabul qilindi. To'lov: Naqd.`);
+    await ctx.editMessageText(`✅ Buyurtma #${orderId} qabul qilindi. Tez orada bog'lanamiz.`);
     await sendOrderToAdmin(orderId);
     carts[userId] = [];
 });
 
-bot.action('pay_card', async (ctx) => {
+bot.action('order_card', async (ctx) => {
     const userId = ctx.from.id;
-    const cart = carts[userId];
-    const totalSum = cart.reduce((a, b) => a + b.price, 0);
-
+    const total = carts[userId].reduce((a, b) => a + b.price, 0);
     try {
         await ctx.replyWithInvoice(
             "Coffee Food",
             "Taomlar to'lovi",
-            `pay_${userId}_${Date.now()}`,
+            `payload_${userId}_${Date.now()}`,
             PAYMENT_TOKEN,
             "UZB",
-            [{ label: "Summa", amount: totalSum * 100 }]
+            [{ label: "Jami", amount: total * 100 }]
         );
         await ctx.answerCbQuery();
     } catch (e) {
-        await ctx.reply("❌ To'lov tizimida xatolik. Iltimos, qayta urunib ko'ring.");
+        await ctx.reply("To'lov tizimida xatolik yuz berdi.");
     }
 });
 
@@ -253,119 +255,105 @@ bot.on('successful_payment', async (ctx) => {
         longitude: users[userId].location.longitude,
         items: [...cart],
         total: cart.reduce((a, b) => a + b.price, 0),
-        status: 'To\'landi ✅',
+        status: 'To\'langan ✅',
         paymentType: 'card'
     };
 
-    await ctx.reply(`✅ To'lov muvaffaqiyatli! Buyurtma #${orderId} qabul qilindi.`, mainKeyboard);
+    await ctx.reply(`✅ To'lov muvaffaqiyatli! Buyurtma #${orderId} qabul qilindi.`);
     await sendOrderToAdmin(orderId);
     carts[userId] = [];
 });
 
-// --- ADMIN VA KURYER BOSHQARUVI (TO'LIQ FUNKSIYALAR) ---
-bot.action(/lock_(.+)/, async (ctx) => {
-    const id = ctx.match[1];
-    if (orders[id]) {
-        orders[id].status = 'Tayyorlanmoqda';
-        await bot.telegram.sendMessage(orders[id].userId, `👨‍🍳 Buyurtma #${id} tayyorlanmoqda! Bekor qilish imkoniyati yopildi.`);
-        await ctx.answerCbQuery("Buyurtma tayyorlovga olingan.");
-    }
-});
-
-bot.action(/ch_(.+)_(.+)/, (ctx) => {
-    const [_, id, cId] = ctx.match;
-    const order = orders[id];
+// 9. ADMIN VA KURYER ACTIONLARI (ENG MUHIM QISMLAR)
+bot.action(/assign_(.+)_(.+)/, (ctx) => {
+    const [_, oId, cId] = ctx.match;
+    const order = orders[oId];
     const courier = COURIERS.find(c => c.id == cId);
-    
-    if (order && courier) {
-        order.status = 'Kuryerga berildi';
-        let itemsList = order.items.map((i, idx) => `${idx + 1}. ${i.name}`).join('\n');
-        let payMethod = order.paymentType === 'cash' ? "💵 Naqd" : "💳 To'langan ✅";
 
-        bot.telegram.sendMessage(cId, `📦 *BUYURTMA #${id}*\n\n📋 *Tarkibi:*\n${itemsList}\n\n📞 Tel: +${order.phone}\n💰 Summa: ${order.total.toLocaleString()} so'm\n💳 To'lov: ${payMethod}`, {
+    if (order && courier) {
+        order.status = 'Kuryerda';
+        let itemsMsg = order.items.map((i, idx) => `${idx + 1}. ${i.name}`).join('\n');
+        
+        bot.telegram.sendMessage(cId, `📦 *YANGI BUYURTMA #${oId}*\n\n📋 *Tarkibi:*\n${itemsMsg}\n\n📞 Tel: +${order.phone}\n💰 Summa: ${order.total.toLocaleString()} so'm`, {
             parse_mode: 'Markdown',
             ...Markup.inlineKeyboard([
-                [Markup.button.callback("✅ Qabul qildim", `c_take_${id}`)],
-                [Markup.button.callback("🏁 Topshirdim", `c_done_${id}`)]
+                [Markup.button.callback("✅ Qabul qildim", `c_take_${oId}`)],
+                [Markup.button.callback("🏁 Topshirdim", `c_done_${oId}`)]
             ])
         });
         bot.telegram.sendLocation(cId, order.latitude, order.longitude);
-        ctx.editMessageText(`✅ #${id} buyurtma ${courier.name}ga biriktirildi.`);
+        ctx.editMessageText(`✅ #${oId} buyurtma ${courier.name}ga biriktirildi.`);
     }
 });
 
 bot.action(/c_take_(.+)/, async (ctx) => {
-    const id = ctx.match[1];
-    if (orders[id]) {
-        orders[id].status = 'Yo\'lda 🚚';
-        await bot.telegram.sendMessage(orders[id].userId, `🚀 Kuryer buyurtmangizni oldi va yo'lga chiqdi!`);
-        await ctx.answerCbQuery("Mijozga xabar yuborildi.");
+    const oId = ctx.match[1];
+    if (orders[oId]) {
+        orders[oId].status = 'Yo\'lda';
+        await bot.telegram.sendMessage(orders[oId].userId, `🚀 Kuryer buyurtmangizni oldi, yo'lda!`);
+        await ctx.answerCbQuery("Mijozga xabar berildi.");
     }
 });
 
 bot.action(/c_done_(.+)/, (ctx) => {
-    const id = ctx.match[1];
-    if (orders[id]) {
-        stats.totalSum += orders[id].total;
-        bot.telegram.sendMessage(orders[id].userId, `🏁 Buyurtmangiz yetkazildi! 👋`);
-        bot.telegram.sendMessage(ADMIN_ID, `✅ Buyurtma #${id} topshirildi.`);
+    const oId = ctx.match[1];
+    if (orders[oId]) {
+        stats.totalSum += orders[oId].total;
+        bot.telegram.sendMessage(orders[oId].userId, `🏁 Buyurtmangiz yetkazildi! 👋`);
         ctx.editMessageText(`🏁 Yakunlandi.`);
-        delete orders[id];
+        delete orders[oId];
+    }
+});
+
+bot.action(/lock_(.+)/, async (ctx) => {
+    const oId = ctx.match[1];
+    if (orders[oId]) {
+        await bot.telegram.sendMessage(orders[oId].userId, `👨‍🍳 Buyurtma #${oId} tayyorlanishni boshladi! Uni endi bekor qilib bo'lmaydi.`);
+        await ctx.answerCbQuery("Buyurtma bloklandi.");
     }
 });
 
 bot.action(/out_list_(.+)/, (ctx) => {
-    const id = ctx.match[1];
-    if (orders[id]) {
-        const buttons = orders[id].items.map((it, idx) => [Markup.button.callback(`❌ ${it.name} (Tugagan)`, `c_out_${id}_${idx}`)]);
-        ctx.editMessageText("Qaysi mahsulot tugaganligini belgilang:", Markup.inlineKeyboard(buttons));
+    const oId = ctx.match[1];
+    if (orders[oId]) {
+        const btns = orders[oId].items.map((it, idx) => [Markup.button.callback(`❌ ${it.name} tugagan`, `rem_${oId}_${idx}`)]);
+        ctx.editMessageText("Qaysi mahsulot tugagan?", Markup.inlineKeyboard(btns));
     }
 });
 
-bot.action(/c_out_(.+)_(.+)/, async (ctx) => {
-    const [_, id, idx] = ctx.match;
-    const order = orders[id];
+bot.action(/rem_(.+)_(.+)/, async (ctx) => {
+    const [_, oId, idx] = ctx.match;
+    const order = orders[oId];
     if (order) {
-        const item = order.items[idx];
+        const removedItem = order.items[idx];
         order.items.splice(idx, 1);
-        order.total -= item.price;
-        await bot.telegram.sendMessage(order.userId, `⚠️ Uzr, *${item.name}* tugagan ekan. Buyurtmangiz qolgan qismi yuboriladi.`);
-        ctx.editMessageText(`✅ ${item.name} o'chirildi.`);
+        order.total -= removedItem.price;
+        await bot.telegram.sendMessage(order.userId, `⚠️ Uzr, buyurtmangizdagi *${removedItem.name}* tugagan ekan. Qolgan mahsulotlar yuboriladi.`);
+        ctx.editMessageText(`✅ ${removedItem.name} o'chirildi.`);
     }
 });
 
-bot.action(/busy_(.+)/, async (ctx) => {
-    const id = ctx.match[1];
-    if (orders[id]) {
-        await bot.telegram.sendMessage(orders[id].userId, `⏳ Buyurtmalar ko'pligi sababli biroz kechikish bo'lishi mumkin.`);
+bot.action(/busy_warn_(.+)/, async (ctx) => {
+    const oId = ctx.match[1];
+    if (orders[oId]) {
+        await bot.telegram.sendMessage(orders[oId].userId, `⏳ Buyurtmalar ko'pligi sababli biroz kechikish bo'lishi mumkin. Uzr!`);
         await ctx.answerCbQuery("Mijoz ogohlantirildi.");
     }
 });
 
-bot.action(/rej_(.+)/, (ctx) => {
-    const id = ctx.match[1];
-    if (orders[id]) {
-        bot.telegram.sendMessage(orders[id].userId, `❌ Uzr, buyurtmangiz qabul qilinmadi.`);
-        delete orders[id];
-        ctx.editMessageText(`❌ #${id} rad etildi.`);
+bot.action(/reject_(.+)/, (ctx) => {
+    const oId = ctx.match[1];
+    if (orders[oId]) {
+        bot.telegram.sendMessage(orders[oId].userId, `❌ Uzr, buyurtmangiz #${oId} qabul qilinmadi.`);
+        delete orders[oId];
+        ctx.editMessageText(`❌ #${oId} rad etildi.`);
     }
 });
 
-// --- ADMIN: HISOBOT ---
 bot.hears('📊 Kunlik hisobot', (ctx) => {
-    if (ctx.from.id !== ADMIN_ID) return;
-    ctx.reply(`📊 Bugungi jami savdo: ${stats.totalSum.toLocaleString()} so'm`);
+    if (ctx.from.id === ADMIN_ID) ctx.reply(`📊 Bugungi jami savdo: ${stats.totalSum.toLocaleString()} so'm`);
 });
 
-bot.hears('📦 Faol buyurtmalar', (ctx) => {
-    if (ctx.from.id !== ADMIN_ID) return;
-    const active = Object.keys(orders);
-    if (active.length === 0) return ctx.reply("Hozircha faol buyurtmalar yo'q.");
-    active.forEach(id => {
-        ctx.reply(`📦 #${id} - ${orders[id].status}\n💰 Summa: ${orders[id].total} so'm`);
-    });
-});
-
-bot.hears('🏠 Mijoz menyusiga o\'tish', (ctx) => ctx.reply("Mijoz ko'rinishiga o'tildi:", mainKeyboard));
+bot.hears('🏠 Mijoz menyusiga o\'tish', (ctx) => ctx.reply("Mijoz menyusi:", mainKeyboard));
 
 bot.launch();
