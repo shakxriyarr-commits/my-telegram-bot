@@ -4,7 +4,7 @@ const express = require('express');
 // 1. ASOSIY SOZLAMALAR
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const ADMIN_ID = 8448862547; 
-const PAYMENT_TOKEN = 'SIZNING_PROVIDER_TOKENINGIZ_SHU_YERGA'; // BotFatherdan olingan Click/Payme token
+const PAYMENT_TOKEN = '398062629:TEST:999999999_F91D8F69C042267444B74CC0B3C747757EB0E065'; // BotFatherdan olingan Click/Payme token
 
 const app = express();
 app.get('/', (req, res) => res.send('Bot is running!'));
