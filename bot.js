@@ -225,7 +225,6 @@ bot.action('pay_cash', async (ctx) => {
     await sendOrderToAdmin(orderId);
     carts[userId] = [];
 });
-
 bot.action('pay_card', async (ctx) => {
     const userId = ctx.from.id;
     const cart = carts[userId] || [];
@@ -244,7 +243,8 @@ bot.action('pay_card', async (ctx) => {
     payMsg += `🔢 Karta: \`${KARTA_RAQAM}\`\n`;
     payMsg += `👤 Egasi: ${KARTA_EGASI}\n`;
     payMsg += `💰 Summa: *${total.toLocaleString()} so'm*\n\n`;
-    payMsg += `⚠️ To'lovni qilgach, chekni adminga yuboring: ${ADMIN_USERNAME}`;
+    // SHU YERDA O'ZGARISH:
+    payMsg += `⚠️ To'lovni qilgach, to'lov chekini *#${orderId}-buyurtma* deb adminga yuboring: ${ADMIN_USERNAME}`;
 
     await ctx.deleteMessage();
     await ctx.replyWithMarkdown(payMsg, mainKeyboard);
