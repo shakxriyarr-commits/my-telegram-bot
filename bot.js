@@ -61,7 +61,7 @@ async function sendOrderToAdmin(orderId) {
         parse_mode: 'Markdown',
         ...Markup.inlineKeyboard([
             [
-                Markup.button.callback("🚚 Shahriyor", `ch_${orderId}_6382827314`),
+                Markup.button.callback("🚚 Shahriyor", `ch_${orderId}_7312694067`),
                 Markup.button.callback("🚚 Ali", `ch_${orderId}_222222222`)
             ],
             [Markup.button.callback("👨‍🍳 Tayyorlash", `lock_${orderId}`)],
