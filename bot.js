@@ -4,7 +4,7 @@ const express = require('express');
 // 1. ASOSIY SOZLAMALAR
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const ADMIN_ID = 8448862547; 
-const ADMIN_USERNAME = "@username"; 
+const ADMIN_USERNAME = "@shakhriyar"; 
 const KARTA_RAQAM = "8600 0000 0000 0000"; 
 const KARTA_E_ISM = "Falonchi Pistonchiyev"; 
 
@@ -50,7 +50,7 @@ const courierKeyboard = Markup.keyboard([
     ['🏠 Mijoz menyusiga o\'tish']
 ]).resize();
 
-// --- ADMINGA BUYURTMA YUBORISH (HAMMA TUGMALARI BILAN) ---
+// --- FUNKSIYA: ADMINGA BUYURTMA YUBORISH ---
 async function sendOrderToAdmin(orderId) {
     const order = orders[orderId];
     if (!order) return;
@@ -73,7 +73,6 @@ async function sendOrderToAdmin(orderId) {
     await bot.telegram.sendLocation(ADMIN_ID, order.latitude, order.longitude);
 }
 
-// --- START ---
 bot.start((ctx) => {
     const userId = ctx.from.id;
     if (userId === ADMIN_ID) ctx.reply("Admin panel! 🛠", adminKeyboard);
@@ -81,7 +80,7 @@ bot.start((ctx) => {
     else ctx.reply("Coffee Food botiga xush kelibsiz! 👋", mainKeyboard);
 });
 
-// --- ADMIN PANELI (QISQARMAGAN) ---
+// --- ADMIN AMALLARI ---
 bot.hears('➕ Taom qo\'shish', (ctx) => {
     if (ctx.from.id !== ADMIN_ID) return;
     adminState[ctx.from.id] = { step: 'name' };
@@ -134,7 +133,7 @@ bot.on('text', (ctx, next) => {
     }
 });
 
-// --- MIJOZ LOGIKASI ---
+// --- MIJOZ MENYUSI ---
 bot.hears('🍴 Menyu', (ctx) => {
     const buttons = menu.map(i => Markup.button.callback(`${i.name}\n${i.price.toLocaleString()} so'm`, `add_${i.id}`));
     ctx.reply("Taom tanlang:", Markup.inlineKeyboard(buttons, { columns: 2 }));
@@ -186,7 +185,7 @@ bot.on('location', async (ctx) => {
     ]));
 });
 
-// --- TO'LOV JARAYONI (NAQD) ---
+// --- TO'LOV JARAYONI ---
 bot.action('pay_cash_process', async (ctx) => {
     const userId = ctx.from.id;
     const cart = carts[userId] || [];
@@ -205,15 +204,21 @@ bot.action('pay_cash_process', async (ctx) => {
     carts[userId] = [];
 });
 
-// --- TO'LOV JARAYONI (KARTA - MUAMMO SHU YERDA EDI, TO'G'RILANDI) ---
+// Karta to'lovi (MUAMMO TO'G'RILANGAN QISM)
 bot.action('pay_card_process', async (ctx) => {
     const userId = ctx.from.id;
-    if (!carts[userId] || carts[userId].length === 0) {
-        return ctx.answerCbQuery("Xato: Savatcha bo'sh!");
-    }
+    const cart = carts[userId] || [];
     
-    const total = carts[userId].reduce((a, b) => a + b.price, 0);
-    let msg = `💳 *To'lov ma'lumotlari:*\n\n🔢 Karta: \`${KARTA_RAQAM}\`\n👤 Egasi: ${KARTA_E_ISM}\n💰 Summa: *${total.toLocaleString()} so'm*\n\n"✅ To'ladim" tugmasini bosing.`;
+    if (cart.length === 0) return ctx.answerCbQuery("Savatcha bo'sh!");
+
+    // Savatcha yo'qolmasligi uchun uni vaqtinchalik buyurtma sifatida saqlab qo'yamiz
+    const total = cart.reduce((a, b) => a + b.price, 0);
+    users[userId].pendingOrder = {
+        items: [...cart],
+        total: total
+    };
+
+    let msg = `💳 *To'lov ma'lumotlari:*\n\n🔢 Karta: \`${KARTA_RAQAM}\`\n👤 Egasi: ${KARTA_E_ISM}\n💰 Summa: *${total.toLocaleString()} so'm*\n\nTo'lovni amalga oshirib "✅ To'ladim" tugmasini bosing.`;
 
     await ctx.editMessageText(msg, {
         parse_mode: 'Markdown',
@@ -223,29 +228,37 @@ bot.action('pay_card_process', async (ctx) => {
 
 bot.action('confirm_card_pay', async (ctx) => {
     const userId = ctx.from.id;
-    const cart = carts[userId];
+    
+    // Avval pendingOrder borligini tekshiramiz (bu xatolikni oldini oladi)
+    const pending = users[userId] ? users[userId].pendingOrder : null;
 
-    // SAVATCHA TEKSHIRUVI
-    if (!cart || cart.length === 0) {
-        return ctx.answerCbQuery("⚠️ Savatcha ma'lumotlari yo'qolgan! Qaytadan urinib ko'ring.", { show_alert: true });
+    if (!pending) {
+        return ctx.answerCbQuery("⚠️ Ma'lumot topilmadi. Iltimos, qaytadan menyuga kiring.", { show_alert: true });
     }
 
     const orderId = (orderCounter++).toString();
-    const total = cart.reduce((a, b) => a + b.price, 0);
 
     orders[orderId] = { 
-        userId, phone: users[userId].phone, latitude: users[userId].tempLat, longitude: users[userId].tempLon, 
-        items: [...cart], total, status: 'Karta (Chek kutilmoqda)', lockCancel: false, payType: 'karta' 
+        userId, 
+        phone: users[userId].phone, 
+        latitude: users[userId].tempLat, 
+        longitude: users[userId].tempLon, 
+        items: pending.items, 
+        total: pending.total, 
+        status: 'Karta (Chek kutilmoqda)', 
+        lockCancel: false, 
+        payType: 'karta' 
     };
 
-    await ctx.editMessageText(`📌 Chekni adminga yuboring: ${ADMIN_USERNAME}\n\nBuyurtmangiz #${orderId} yuborildi.`, mainKeyboard);
+    await ctx.editMessageText(`📌 Chekni adminga yuboring: ${ADMIN_USERNAME}\n\nBuyurtmangiz #${orderId} adminga yuborildi.`, mainKeyboard);
     await sendOrderToAdmin(orderId);
     
-    // BUYURTMA BITGANDAN KEYIN SAVATCHANI TOZALASH
+    // Tozalash
     carts[userId] = []; 
+    delete users[userId].pendingOrder;
 });
 
-// --- ADMIN VA KURYER ACTIONLARI (TO'LIQ) ---
+// --- ADMIN VA KURYER ACTIONLARI ---
 bot.action(/ch_(.+)_(.+)/, (ctx) => {
     const [_, id, cId] = ctx.match;
     const order = orders[id];
@@ -269,7 +282,7 @@ bot.action(/lock_(.+)/, async (ctx) => {
     if (orders[id]) {
         orders[id].lockCancel = true;
         orders[id].status = 'Tayyorlanmoqda';
-        bot.telegram.sendMessage(orders[id].userId, `👨‍🍳 Buyurtma #${id} tayyorlanmoqda! Uni bekor qila olmaysiz. 🔒`);
+        bot.telegram.sendMessage(orders[id].userId, `👨‍🍳 Buyurtma #${id} tayyorlanmoqda! 🔒`);
     }
 });
 
@@ -307,7 +320,7 @@ bot.action(/rej_(.+)/, (ctx) => {
 bot.action(/busy_(.+)/, async (ctx) => {
     const id = ctx.match[1];
     if (orders[id]) {
-        await bot.telegram.sendMessage(orders[id].userId, `⏳ Bandlik sababli buyurtma biroz kechikishi mumkin. 😊`);
+        await bot.telegram.sendMessage(orders[id].userId, `⏳ Bandlik sababli biroz kechikishi mumkin. 😊`);
         await ctx.answerCbQuery("Ogohlantirildi!");
     }
 });
@@ -355,5 +368,5 @@ bot.action('clear_cart', (ctx) => { carts[ctx.from.id] = []; ctx.editMessageText
 // --- LAUNCH ---
 bot.telegram.deleteWebhook().then(() => {
     bot.launch();
-    console.log("Bot ideal holatda ishga tushdi!");
+    console.log("Bot ishga tushdi!");
 });
