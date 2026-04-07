@@ -31,7 +31,7 @@ let menu = [
 
 let carts = {};
 let orders = {};
-let users = {}; // Mijoz ma'lumotlarini saqlash uchun
+let users = {}; 
 
 // 2. KLAVIATURALAR
 const mainKeyboard = Markup.keyboard([
@@ -91,10 +91,6 @@ bot.action(/ch_(.+)_(.+)/, (ctx) => {
         bot.telegram.sendLocation(cId, order.latitude, order.longitude);
         ctx.editMessageText(`✅ #${id} kuryerga yuborildi.`);
     }
-});
-
-bot.action("rej_order", (ctx) => {
-    ctx.editMessageText(ctx.callbackQuery.message.text + "\n\n❌ **Buyurtma rad etildi.**");
 });
 
 // --- START ---
@@ -169,15 +165,17 @@ bot.hears('🍴 Menyu', (ctx) => {
 });
 
 bot.action(/add_(.+)/, async (ctx) => {
+    const userId = ctx.from.id;
     const id = ctx.match[1];
     const item = menu.find(i => i.id === id);
-    if (!carts[ctx.from.id]) carts[ctx.from.id] = [];
-    carts[ctx.from.id].push({ ...item });
+    if (!carts[userId]) carts[userId] = [];
+    carts[userId].push({ ...item });
     await ctx.answerCbQuery(`${item.name} qo'shildi ✅`);
 });
 
 bot.hears('🛒 Savatcha', (ctx) => {
-    const cart = carts[ctx.from.id] || [];
+    const userId = ctx.from.id;
+    const cart = carts[userId] || [];
     if (!cart.length) return ctx.reply("Savatcha bo'sh 🛒");
     let total = 0;
     let text = "🛒 *Savatchangizda:*\n\n";
@@ -196,7 +194,8 @@ bot.action('order_start', (ctx) => {
 });
 
 bot.on('contact', (ctx) => {
-    users[ctx.from.id] = { phone: ctx.message.contact.phone_number };
+    const userId = ctx.from.id;
+    users[userId] = { phone: ctx.message.contact.phone_number };
     ctx.reply("📍 Lokatsiyangizni yuboring:", Markup.keyboard([[Markup.button.locationRequest("📍 Lokatsiyani yuborish")]]).resize().oneTime());
 });
 
@@ -238,11 +237,14 @@ bot.action('pay_method_cash', async (ctx) => {
     carts[userId] = [];
 });
 
-// KARTA ORQALI TO'LOV
+// KARTA ORQALI TO'LOV (BU YERDA HATOLIK TUZATILDI)
 bot.action('pay_method_card', async (ctx) => {
     const userId = ctx.from.id;
     const cart = carts[userId] || [];
-    if (!cart.length) return ctx.answerCbQuery("Savatchangiz bo'sh!");
+    
+    if (!cart || cart.length === 0) {
+        return ctx.answerCbQuery("Xatolik! Savatchangiz bo'sh.");
+    }
 
     const total = cart.reduce((a, b) => a + b.price, 0);
     
@@ -258,13 +260,13 @@ bot.action('pay_method_card', async (ctx) => {
     });
 });
 
-// TO'LADIM TUGMASI
+// TO'LADIM TUGMASI (IDEAL)
 bot.action('confirm_card_payment', async (ctx) => {
     const userId = ctx.from.id;
     const cart = carts[userId] || [];
     
-    if (!cart.length) {
-        return ctx.answerCbQuery("Xatolik! Savatcha topilmadi.");
+    if (!cart || cart.length === 0) {
+        return ctx.answerCbQuery("Xatolik! Savatcha ma'lumotlari topilmadi.");
     }
 
     const orderId = (orderCounter++).toString();
