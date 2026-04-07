@@ -18,7 +18,7 @@ let courierStats = {};
 let adminState = {}; 
 
 const COURIERS = [
-    { id: 6382827314, name: "Shahriyor" },
+    { id: 645742547, name: "Shahriyor" },
     { id: 222222222, name: "Ali" }
 ];
 
