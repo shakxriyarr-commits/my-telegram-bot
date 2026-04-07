@@ -33,7 +33,7 @@ let carts = {};
 let orders = {};
 let users = {}; 
 
-// --- ADMINGA BUYURTMA YUBORISH (SENING ORIGINAL VA UZUN TUGMALARING BILAN) ---
+// --- ADMINGA BUYURTMA YUBORISH (HAMMA TUGMALAR SENING ASLIY MATNLARING BILAN) ---
 async function sendOrderToAdmin(orderId) {
     const order = orders[orderId];
     if (!order) return;
@@ -67,7 +67,7 @@ async function sendOrderToAdmin(orderId) {
     await bot.telegram.sendLocation(ADMIN_ID, order.latitude, order.longitude);
 }
 
-// 2. KLAVIATURALAR (ORIGINAL VA TO'LIQ)
+// 2. KLAVIATURALAR (ORIGINAL)
 const mainKeyboard = Markup.keyboard([
     ['🍴 Menyu', '🛒 Savatcha'],
     ['🗂 Buyurtmalarim', '📞 Aloqa']
@@ -87,16 +87,12 @@ const courierKeyboard = Markup.keyboard([
 // --- START ---
 bot.start((ctx) => {
     const userId = ctx.from.id;
-    if (userId === ADMIN_ID) {
-        ctx.reply("Assalomu alaykum Admin! Kerakli bo'limni tanlang: 🛠", adminKeyboard);
-    } else if (COURIERS.some(c => c.id === userId)) {
-        ctx.reply("Kuryer paneli ishga tushdi! Xush kelibsiz! 🚗", courierKeyboard);
-    } else {
-        ctx.reply("Coffee Food botiga xush kelibsiz! Marhamat, menyudan taom tanlang: 👋", mainKeyboard);
-    }
+    if (userId === ADMIN_ID) ctx.reply("Assalomu alaykum Admin! Kerakli bo'limni tanlang: 🛠", adminKeyboard);
+    else if (COURIERS.some(c => c.id === userId)) ctx.reply("Kuryer paneli ishga tushdi! Xush kelibsiz! 🚗", courierKeyboard);
+    else ctx.reply("Coffee Food botiga xush kelibsiz! Marhamat, menyudan taom tanlang: 👋", mainKeyboard);
 });
 
-// --- MIJOZ LOGIKASI (SENING ASLIY MATNLARING) ---
+// --- MIJOZ LOGIKASI ---
 bot.hears('🍴 Menyu', (ctx) => {
     const buttons = menu.map(i => Markup.button.callback(`${i.name} - ${i.price.toLocaleString()} so'm`, `add_${i.id}`));
     ctx.reply("🍴 Bizning menyu bilan tanishing va taom tanlang:", Markup.inlineKeyboard(buttons, { columns: 1 }));
@@ -114,14 +110,9 @@ bot.hears('🛒 Savatcha', (ctx) => {
     const userId = ctx.from.id;
     const cart = carts[userId] || [];
     if (cart.length === 0) return ctx.reply("Sizning savatchangiz hozircha bo'sh! 🛒");
-    
-    let total = 0;
+    let total = cart.reduce((a, b) => a + b.price, 0);
     let text = "🛒 *Sizning savatchangizda:*\n\n";
-    cart.forEach((i, idx) => {
-        text += `${idx + 1}. ${i.name} — ${i.price.toLocaleString()} so'm\n`;
-        total += i.price;
-    });
-    
+    cart.forEach((i, idx) => { text += `${idx + 1}. ${i.name} — ${i.price.toLocaleString()} so'm\n`; });
     ctx.replyWithMarkdown(`${text}\n💰 *Jami:* ${total.toLocaleString()} so'm`, Markup.inlineKeyboard([
         [Markup.button.callback("✅ Buyurtma berishni davom ettirish", "order_start")],
         [Markup.button.callback("🗑 Savatchani tozalash", "clear_cart")]
@@ -129,18 +120,14 @@ bot.hears('🛒 Savatcha', (ctx) => {
 });
 
 bot.action('order_start', (ctx) => {
-    ctx.reply("📞 Buyurtmani rasmiylashtirish uchun telefon raqamingizni yuboring:", Markup.keyboard([
-        [Markup.button.contactRequest("📞 Telefon raqamni yuborish")]
-    ]).resize().oneTime());
+    ctx.reply("📞 Buyurtmani rasmiylashtirish uchun telefon raqamingizni yuboring:", Markup.keyboard([[Markup.button.contactRequest("📞 Telefon raqamni yuborish")]]).resize().oneTime());
 });
 
 bot.on('contact', (ctx) => {
     const userId = ctx.from.id;
     if (!users[userId]) users[userId] = {};
     users[userId].phone = ctx.message.contact.phone_number;
-    ctx.reply("📍 Rahmat! Endi buyurtmangizni yetkazishimiz uchun lokatsiyangizni yuboring:", Markup.keyboard([
-        [Markup.button.locationRequest("📍 Lokatsiyani yuborish")]
-    ]).resize().oneTime());
+    ctx.reply("📍 Rahmat! Endi buyurtmangizni yetkazishimiz uchun lokatsiyangizni yuboring:", Markup.keyboard([[Markup.button.locationRequest("📍 Lokatsiyani yuborish")]]).resize().oneTime());
 });
 
 bot.on('location', (ctx) => {
@@ -148,7 +135,6 @@ bot.on('location', (ctx) => {
     if (!users[userId]) users[userId] = {};
     users[userId].lat = ctx.message.location.latitude;
     users[userId].lon = ctx.message.location.longitude;
-    
     ctx.reply("💳 Iltimos, to'lov turini tanlang:", Markup.inlineKeyboard([
         [Markup.button.callback("💵 Naqd pul (Kuryerga)", "pay_cash")],
         [Markup.button.callback("💳 Karta orqali to'lov", "pay_card")]
@@ -161,14 +147,16 @@ bot.action('pay_cash', async (ctx) => {
     const cart = carts[userId] || [];
     if (!cart.length) return ctx.answerCbQuery("Sizning savatchangiz bo'sh!");
     const orderId = (orderCounter++).toString();
-    const total = cart.reduce((a, b) => a + b.price, 0);
-    orders[orderId] = { userId, phone: users[userId].phone, latitude: users[userId].lat, longitude: users[userId].lon, items: [...cart], total, status: 'Yangi', payType: 'naqd' };
+    orders[orderId] = { 
+        userId, phone: users[userId].phone, latitude: users[userId].lat, longitude: users[userId].lon, 
+        items: [...cart], total: cart.reduce((a,b)=>a+b.price,0), status: 'Yangi', payType: 'naqd' 
+    };
     await ctx.editMessageText(`✅ Buyurtmangiz #${orderId} qabul qilindi. Tez orada siz bilan bog'lanamiz!`);
     await sendOrderToAdmin(orderId);
     carts[userId] = [];
 });
 
-// --- TO'LOV: KARTA (NUQTA-VERGULIGACHA ASLIY MATNLAR) ---
+// --- TO'LOV: KARTA ---
 bot.action('pay_card', async (ctx) => {
     const userId = ctx.from.id;
     const cart = carts[userId] || [];
@@ -177,12 +165,7 @@ bot.action('pay_card', async (ctx) => {
     if (!users[userId]) users[userId] = {};
     users[userId].pendingOrder = { items: [...cart], total: total };
 
-    let paymentMsg = `💳 *To'lov ma'lumotlari:*\n\n` +
-                     `🔢 Karta raqami: \`${KARTA_RAQAM}\`\n` +
-                     `👤 Karta egasi: ${KARTA_E_ISM}\n` +
-                     `💰 To'lov summasi: *${total.toLocaleString()} so'm*\n\n` +
-                     `Iltimos, pulni o'tkazgandan so'ng quyidagi "✅ To'ladim" tugmasini bosing va chekni adminga yuboring.`;
-
+    let paymentMsg = `💳 *To'lov ma'lumotlari:*\n\n🔢 Karta raqami: \`${KARTA_RAQAM}\`\n👤 Karta egasi: ${KARTA_E_ISM}\n💰 To'lov summasi: *${total.toLocaleString()} so'm*\n\nIltimos, pulni o'tkazgandan so'ng quyidagi "✅ To'ladim" tugmasini bosing.`;
     await ctx.editMessageText(paymentMsg, { parse_mode: 'Markdown', ...Markup.inlineKeyboard([[Markup.button.callback("✅ To'ladim", "confirm_card")]]) });
 });
 
@@ -190,16 +173,19 @@ bot.action('confirm_card', async (ctx) => {
     const userId = ctx.from.id;
     const userData = users[userId];
     const pending = userData ? userData.pendingOrder : null;
-    if (!pending) return ctx.answerCbQuery("⚠️ Kechirasiz, savatcha ma'lumotlari yo'qolgan. Iltimos, menyuga qaytib qaytadan buyurtma bering.", { show_alert: true });
+    if (!pending) return ctx.answerCbQuery("⚠️ Savatcha topilmadi!", { show_alert: true });
 
     const orderId = (orderCounter++).toString();
-    orders[orderId] = { userId, phone: userData.phone, latitude: userData.lat, longitude: userData.lon, items: pending.items, total: pending.total, status: 'Karta (Chek kutilmoqda)', payType: 'karta' };
+    orders[orderId] = { 
+        userId, phone: userData.phone, latitude: userData.lat, longitude: userData.lon, 
+        items: pending.items, total: pending.total, status: 'Karta (Chek kutilmoqda)', payType: 'karta' 
+    };
     await ctx.editMessageText(`📌 Rahmat! Buyurtmangiz #${orderId} adminga yuborildi. To'lov chekini ushbu profilga yuboring: ${ADMIN_USERNAME}\n\nSiz bilan tez orada bog'lanamiz!`, mainKeyboard);
     await sendOrderToAdmin(orderId);
     carts[userId] = []; delete users[userId].pendingOrder;
 });
 
-// --- ADMIN AMALLARI (HAMMA ASLIY MATNLAR VA TUGMALAR) ---
+// --- ADMIN AMALLARI ---
 bot.action(/ch_(.+)_(.+)/, (ctx) => {
     const [_, id, cId] = ctx.match;
     const order = orders[id];
