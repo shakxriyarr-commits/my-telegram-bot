@@ -258,7 +258,7 @@ bot.action('pay_method_card', async (ctx) => {
     });
 });
 
-// TO'LADIM TUGMASI (IDEAL ISHLAYDI)
+// TO'LADIM TUGMASI
 bot.action('confirm_card_payment', async (ctx) => {
     const userId = ctx.from.id;
     const cart = carts[userId] || [];
@@ -270,7 +270,6 @@ bot.action('confirm_card_payment', async (ctx) => {
     const orderId = (orderCounter++).toString();
     const total = cart.reduce((a, b) => a + b.price, 0);
 
-    // Buyurtmani saqlash
     orders[orderId] = { 
         userId, 
         phone: users[userId].phone, 
@@ -287,8 +286,6 @@ bot.action('confirm_card_payment', async (ctx) => {
     
     await ctx.editMessageText(adminMsg);
     await sendOrderToAdmin(orderId);
-    
-    // Savatni tozalash
     carts[userId] = [];
 });
 
@@ -352,8 +349,11 @@ bot.hears('📊 Kunlik hisobot', (ctx) => {
     ctx.replyWithMarkdown(t);
 });
 
-bot.hears('🏁 Topshirilgan buyurtmalarim', (ctx) => ctx.reply(`✅ Bugun jami: ${courierStats[ctx.from.id] || 0} ta`));
 bot.hears('🏠 Mijoz menyusiga o\'tish', (ctx) => ctx.reply("O'tildi:", mainKeyboard));
 bot.action('clear_cart', (ctx) => { carts[ctx.from.id] = []; ctx.editMessageText("Tozalandi."); });
 
-bot.launch();
+// --- XATONI OLDINI OLISH (Conflict fix) ---
+bot.telegram.deleteWebhook().then(() => {
+    bot.launch();
+    console.log("Bot ideal holatda ishga tushdi!");
+});
