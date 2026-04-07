@@ -4,7 +4,7 @@ const express = require('express');
 // 1. ASOSIY SOZLAMALAR
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const ADMIN_ID = 8448862547; 
-const ADMIN_USERNAME = "@username"; // ADMIN USERNAME (Lichkasi)
+const ADMIN_USERNAME = "@shakhriyar"; // ADMIN USERNAME (Lichkasi)
 const KARTA_RAQAM = "8600 0000 0000 0000"; // KARTA RAQAMI
 const KARTA_E_ISM = "Falonchi Pistonchiyev"; // KARTA EGASI
 
