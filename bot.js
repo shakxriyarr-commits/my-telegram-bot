@@ -3,7 +3,7 @@ const express = require('express');
 
 // 1. ASOSIY SOZLAMALAR
 const bot = new Telegraf(process.env.BOT_TOKEN);
-const ADMIN_ID = 8448862547; 
+const ADMIN_ID = 8030496668; 
 const ADMIN_USERNAME = "@username"; // BU YERGA O'ZINGIZNI USERNAMEINGIZNI YOZING
 const KARTA_RAQAM = "8600 0000 0000 0000"; // KARTA RAQAMINGIZ
 const KARTA_EGASI = "Falonchi Pistonchiyev"; // ISMINGIZ
