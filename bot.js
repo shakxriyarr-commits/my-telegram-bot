@@ -4,7 +4,7 @@ const express = require('express');
 // 1. ASOSIY SOZLAMALAR
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const ADMIN_ID = 8030496668; 
-const ADMIN_USERNAME = "@username"; // BU YERGA O'ZINGIZNI USERNAMEINGIZNI YOZING
+const ADMIN_USERNAME = "@shaxriiyar"; // BU YERGA O'ZINGIZNI USERNAMEINGIZNI YOZING
 const KARTA_RAQAM = "8600 0000 0000 0000"; // KARTA RAQAMINGIZ
 const KARTA_EGASI = "Falonchi Pistonchiyev"; // ISMINGIZ
 
@@ -98,7 +98,7 @@ bot.start((ctx) => {
     const userId = ctx.from.id;
     if (userId === ADMIN_ID) ctx.reply("Admin panel! 🛠", adminKeyboard);
     else if (COURIERS.some(c => c.id === userId)) ctx.reply("Kuryer paneli! 🚗", courierKeyboard);
-    else ctx.reply("Coffee Food botiga xush kelibsiz! 👋", mainKeyboard);
+    else ctx.reply("Qopoq somsa botiga xush kelibsiz! 👋", mainKeyboard);
 });
 
 // --- ADMIN MENYU BOSHQARUVI ---
