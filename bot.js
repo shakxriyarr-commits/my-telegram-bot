@@ -98,7 +98,7 @@ bot.start((ctx) => {
     const userId = ctx.from.id;
     if (userId === ADMIN_ID) ctx.reply("Admin panel! 🛠", adminKeyboard);
     else if (COURIERS.some(c => c.id === userId)) ctx.reply("Kuryer paneli! 🚗", courierKeyboard);
-    else ctx.reply("Assalomu alaykum! "Qopoq Somsa" botiga xush kelibsiz! 🥟
+    else ctx.reply("Assalomu alaykum! Qopoq Somsa botiga xush kelibsiz! 🥟
 ​Urganch tumanida 7 yildan buyon o'zining betakror ta'mi bilan tanilgan markazimiz endi Telegram’da ham xizmatingizda! Bizda har doim issiq va sarxil somsalarni topasiz.
 ​🍴 Bizning menyu:
 ​🥟 Qopoq somsa
